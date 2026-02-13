@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(\"C:\\\\Users\\\\김재훈\\\\Desktop\\\\blog_project\\\\middleware.ts\" << 'EOF'\nimport { NextRequest, NextResponse } from \"next/server\";\nimport { jwtVerify } from \"jose\";\n\nconst secret = new TextEncoder\\(\\).encode\\(\n  process.env.SESSION_SECRET || \"super_secret_key_change_in_production\"\n\\);\n\nconst publicPaths = [\"/login\", \"/api/auth/login\"];\nconst protectedPaths = [\"/generate\", \"/format\", \"/api/generate\", \"/api/blog\", \"/api/assistant\"];\n\nexport async function middleware\\(request: NextRequest\\) {\n  const { pathname } = request.nextUrl;\n\n  // 공개 경로는 바로 통과\n  if \\(publicPaths.some\\(\\(path\\) => pathname.startsWith\\(path\\)\\)\\) {\n    return NextResponse.next\\(\\);\n  }\n\n  // 보호된 경로 확인\n  const isProtected = protectedPaths.some\\(\\(path\\) => pathname.startsWith\\(path\\)\\);\n\n  if \\(!isProtected\\) {\n    return NextResponse.next\\(\\);\n  }\n\n  // 보호된 경로에는 세션 필수\n  const token = request.cookies.get\\(\"blog_session\"\\)?.value;\n\n  if \\(!token\\) {\n    // API 요청이면 401 반환\n    if \\(pathname.startsWith\\(\"/api\"\\)\\) {\n      return NextResponse.json\\(\n        { success: false, error: \"인증이 필요합니다\" },\n        { status: 401 }\n      \\);\n    }\n\n    // 페이지 요청이면 로그인 페이지로 리디렉션\n    return NextResponse.redirect\\(new URL\\(\"/login\", request.url\\)\\);\n  }\n\n  // 토큰 검증\n  try {\n    await jwtVerify\\(token, secret\\);\n    return NextResponse.next\\(\\);\n  } catch {\n    // 토큰이 유효하지 않음\n    if \\(pathname.startsWith\\(\"/api\"\\)\\) {\n      return NextResponse.json\\(\n        { success: false, error: \"인증이 만료되었습니다\" },\n        { status: 401 }\n      \\);\n    }\n\n    return NextResponse.redirect\\(new URL\\(\"/login\", request.url\\)\\);\n  }\n}\n\nexport const config = {\n  matcher: [\"/\\(\\(?!_next/static|_next/image|favicon.ico\\).*\\)\"],\n};\nEOF)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 15 npm run dev:*)",
+      "Bash(timeout 20 npm run dev:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(timeout:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_run_code",
+      "mcp__playwright__browser_evaluate",
+      "Bash(dir:*)",
+      "mcp__playwright__browser_wait_for",
+      "Bash(node test-crawler.js:*)",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_console_messages",
+      "Bash(curl:*)",
+      "Bash(\"C:\\\\Users\\\\김재훈\\\\Desktop\\\\blog_project\\\\lib\\\\utils\\\\client-image-guide.ts\" << 'EOF'\nimport type { ImageGuide, ImageAnalysisResult } from \"@/types/index\";\nimport { parseMarkers } from \"./marker-parser\";\n\n/**\n * 클라이언트에서 생성된 콘텐츠로부터 간단한 이미지 가이드를 생성합니다\n */\nexport function generateClientImageGuides\\(\n  content: string,\n  imageAnalysis: ImageAnalysisResult\n\\): ImageGuide[] {\n  const lines = content.split\\(\"\\\\n\"\\);\n  const markers = parseMarkers\\(content\\);\n  const guides: ImageGuide[] = [];\n\n  for \\(const marker of markers\\) {\n    const imageIndex = marker.index;\n    const analysis = imageAnalysis.images.find\\(\\(img\\) => img.idx === imageIndex\\);\n\n    if \\(!analysis\\) {\n      continue;\n    }\n\n    // 마커가 있는 줄 찾기\n    let lineNumber = 0;\n    let paragraphNumber = 0;\n    let currentParagraph = 0;\n\n    for \\(let i = 0; i < lines.length; i++\\) {\n      if \\(lines[i].trim\\(\\) === \"\"\\) {\n        currentParagraph++;\n      } else if \\(lines[i].includes\\(marker.marker\\)\\) {\n        lineNumber = i + 1;\n        paragraphNumber = currentParagraph + 1;\n        break;\n      }\n    }\n\n    // 제안 캡션\n    const suggestedCaption = analysis.desc || \"이미지\";\n\n    // 배치 결정\n    const placement: \"inline\" | \"standalone\" =\n      lineNumber === 0 || lineNumber > lines.length\n        ? \"inline\"\n        : lines[lineNumber - 1].replace\\(/\\\\[IMAGE_\\\\d+\\\\]/g, \"\"\\).trim\\(\\).length < 10\n          ? \"standalone\"\n          : \"inline\";\n\n    const guide: ImageGuide = {\n      index: imageIndex,\n      marker: marker.marker,\n      lineNumber,\n      paragraphNumber,\n      suggestedCaption,\n      placement,\n    };\n\n    guides.push\\(guide\\);\n  }\n\n  // 인덱스 순서로 정렬\n  guides.sort\\(\\(a, b\\) => a.index - b.index\\);\n\n  return guides;\n}\nEOF)",
+      "mcp__playwright__browser_install",
+      "mcp__playwright__browser_file_upload",
+      "Bash(pkill:*)",
+      "Bash(taskkill:*)",
+      "mcp__playwright__browser_close",
+      "Bash(/tmp/test_image.py << 'EOF'\nfrom PIL import Image, ImageDraw\nimport os\n\n# Create a simple test image \\(food image\\)\nimg = Image.new\\('RGB', \\(400, 300\\), color='white'\\)\ndraw = ImageDraw.Draw\\(img\\)\n\n# Draw a simple pasta dish representation\ndraw.ellipse\\([50, 50, 350, 250], fill='#FFD700', outline='#FF8C00', width=3\\)\ndraw.text\\(\\(150, 130\\), 'Pasta', fill='#FF6347'\\)\n\nimg.save\\('/tmp/test_food.jpg'\\)\nprint\\(\"Test image created at /tmp/test_food.jpg\"\\)\nEOF)",
+      "Bash(python:*)",
+      "Bash(powershell -Command:*)",
+      "WebSearch",
+      "Bash(wc -l:*)"
+    ]
+  }
+}

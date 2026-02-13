@@ -1,0 +1,33 @@
+[   98924ms] [WARNING] Detected `scroll-behavior: smooth` on the `<html>` element. In a future version, Next.js will no longer automatically disable smooth scrolling during route transitions. To prepare for this change, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[  536393ms] Event
+[  538280ms] Event
+[  544462ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/generate?_rsc=ju2n0:0
+[  546443ms] Event
+[  550332ms] Event
+[  553552ms] Event
+[  559207ms] Event
+[  562102ms] Event
+[  564651ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/generate?_rsc=ju2n0:0
+[  571878ms] Event
+[  585343ms] Event
+[  704877ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/_next/static/css/app/layout.css?v=1770890581956:0
+[  704883ms] Event
+[  712070ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/_next/static/css/app/layout.css?v=1770890589150:0
+[  712075ms] Event
+[  715306ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/_next/static/css/app/layout.css?v=1770890592388:0
+[  715313ms] Event
+[  718389ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/_next/static/css/app/layout.css?v=1770890595460:0
+[  718395ms] Event
+[  722479ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/_next/static/css/app/layout.css?v=1770890599553:0
+[  722486ms] Event
+[  727606ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/_next/static/css/app/layout.css?v=1770890604673:0
+[  727611ms] Event
+[  729783ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/_next/static/css/app/layout.css?v=1770890606851:0
+[  729791ms] Event
+[  738437ms] Event
+[  744969ms] Event
+[  754326ms] Event
+[  758297ms] Event
+[  764170ms] Event
+[  772659ms] Event
+[  781937ms] Event

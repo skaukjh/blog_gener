@@ -1,0 +1,59 @@
+[    1857ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3010/_next/static/css/app/layout.css?v=1770453835031:0
+[    1867ms] Event
+[    2035ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3010/format:0
+[    2494ms] Error: Cannot find module './331.js'
+Require stack:
+- C:\Users\김재훈\Desktop\blog_project\.next\server\webpack-runtime.js
+- C:\Users\김재훈\Desktop\blog_project\.next\server\app\api\auth\verify\route.js
+- C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\require.js
+- C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\load-components.js
+- C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\build\utils.js
+- C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\build\swc\options.js
+- C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\build\swc\index.js
+- C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\config.js
+- C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\next.js
+- C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\lib\start-server.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1421:15)
+    at <unknown> (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\require-hook.js:57:36)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1227:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1504:12)
+    at mod.require (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\require-hook.js:68:28)
+    at require (node:internal/modules/helpers:152:16)
+    at __webpack_require__.f.require (file://C:\Users\김재훈\Desktop\blog_project\.next\server\webpack-runtime.js:195:28)
+    at <unknown> (file://C:\Users\김재훈\Desktop\blog_project\.next\server\webpack-runtime.js:108:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (file://C:\Users\김재훈\Desktop\blog_project\.next\server\webpack-runtime.js:107:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (file://C:\Users\김재훈\Desktop\blog_project\.next\server\webpack-runtime.js:159:22)
+    at <unknown> (file://C:\Users\김재훈\Desktop\blog_project\.next\server\app\(protected)\format\page.js:2:7415)
+    at Object.<anonymous> (file://C:\Users\김재훈\Desktop\blog_project\.next\server\app\(protected)\format\page.js:2:7465)
+    at Module._compile (node:internal/modules/cjs/loader:1761:14)
+    at Object..js (node:internal/modules/cjs/loader:1893:10)
+    at Module.load (node:internal/modules/cjs/loader:1481:32)
+    at Module._load (node:internal/modules/cjs/loader:1300:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1504:12)
+    at mod.require (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\require-hook.js:68:28)
+    at require (node:internal/modules/helpers:152:16)
+    at requirePage (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\require.js:99:80)
+    at loadComponentsImpl (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\load-components.js:132:57)
+    at async DevServer.findPageComponentsImpl (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\next-server.js:899:36)
+    at async DevServer.findPageComponents (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\dev\next-dev-server.js:706:16)
+    at async DevServer.renderPageComponent (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\base-server.js:1460:24)
+    at async DevServer.renderToResponseImpl (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\base-server.js:1514:32)
+    at async DevServer.pipeImpl (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\base-server.js:1025:25)
+    at async NextNodeServer.handleCatchallRenderRequest (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\next-server.js:393:17)
+    at async DevServer.handleRequestImpl (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\base-server.js:916:17)
+    at async (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\dev\next-dev-server.js:400:20)
+    at async Span.traceAsyncFn (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\dev\next-dev-server.js:396:24)
+    at async invokeRender (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\lib\router-server.js:437:24)
+    at async requestHandlerImpl (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\lib\router-server.js:485:13)
+    at async Server.requestListener (file://C:\Users\김재훈\Desktop\blog_project\node_modules\next\dist\server\lib\start-server.js:226:13)
