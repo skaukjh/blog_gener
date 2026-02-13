@@ -53,6 +53,7 @@
     "@types/cheerio": "^0.22.35",
     "@types/sharp": "^0.31.1",
     "eslint": "^9.39.2",
-    "eslint-config-next": "^16.1.6"
+    "eslint-config-next": "^16.1.6",
+    "tsx": "^4.21.0"
   }
 }
