@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/layout/Navigation';
 import ImageUpload from '@/components/form/ImageUpload';
 import KeywordInput from '@/components/form/KeywordInput';
-import { Sparkles, Copy, Download, AlertCircle, ChevronDown, Check, X } from 'lucide-react';
-import type { KeywordItem, ImageAnalysisResult, ChatMessage } from '@/types/index';
+import { Sparkles, Copy, Download, AlertCircle, ChevronDown, Check, X, Star } from 'lucide-react';
+import type { KeywordItem, ImageAnalysisResult, ChatMessage, MenuInfo } from '@/types/index';
 import { generateClientImageGuides } from '@/lib/utils/client-image-guide';
 import { copyToClipboard } from '@/lib/utils/download';
 
@@ -31,6 +31,8 @@ export default function GeneratePage() {
   const [placeInfo, setPlaceInfo] = useState<any | null>(null);
   const [loadingPlace, setLoadingPlace] = useState(false);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [menuInput, setMenuInput] = useState('');
+  const [showMenuInput, setShowMenuInput] = useState(false);
 
   // 초기 로드 시 저장된 스타일 조회 (sessionStorage 우선)
   useEffect(() => {
@@ -119,6 +121,24 @@ export default function GeneratePage() {
     });
   };
 
+  // 메뉴 정보 파싱 (메뉴명 | 가격 | 후기 형식)
+  const parseMenuInput = (): MenuInfo[] => {
+    if (!menuInput.trim()) return [];
+
+    return menuInput
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((line) => {
+        const parts = line.split('|').map((p) => p.trim());
+        return {
+          name: parts[0] || '',
+          price: parts[1] || undefined,
+          description: parts[2] || '',
+        };
+      })
+      .filter((menu) => menu.name); // 이름이 있는 메뉴만
+  };
+
   const handleGenerate = async () => {
     setError('');
     setLoading(true);
@@ -171,6 +191,16 @@ export default function GeneratePage() {
       const imageData = await imageResponse.json();
 
       setLoadingStep('generate');
+
+      // 메뉴 정보 파싱 및 placeInfo에 추가
+      const menus = parseMenuInput();
+      const placeInfoWithMenus = placeInfo
+        ? {
+            ...placeInfo,
+            menus,
+          }
+        : undefined;
+
       const contentResponse = await fetch('/api/generate/create-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,7 +211,7 @@ export default function GeneratePage() {
           imageAnalysis: imageData.analysis,
           startSentence: startSentence || undefined,
           endSentence: endSentence || undefined,
-          placeInfo: placeInfo || undefined,
+          placeInfo: placeInfoWithMenus || undefined,
         }),
       });
 
@@ -696,6 +726,68 @@ export default function GeneratePage() {
                       {placeInfo.parking && <p><strong>주차:</strong> {placeInfo.parking}</p>}
                       {placeInfo.nearbyTransit && <p><strong>대중교통:</strong> {placeInfo.nearbyTransit}</p>}
                     </div>
+                    {/* 메뉴 정보 입력 */}
+                    <div className="border-t border-green-200 pt-3">
+                      <button
+                        onClick={() => setShowMenuInput(!showMenuInput)}
+                        className="text-xs font-semibold text-green-900 hover:text-green-700 flex items-center gap-1"
+                      >
+                        {showMenuInput ? '▼' : '▶'} 🍽️ 대표 메뉴 추가 (선택사항)
+                      </button>
+
+                      {showMenuInput && (
+                        <div className="mt-3">
+                          <textarea
+                            value={menuInput}
+                            onChange={(e) => setMenuInput(e.target.value)}
+                            placeholder="메뉴명 | 가격 | 후기&#10;감자탕 | 15,000원 | 고기가 푸짐하고 국물이 진해요&#10;뼈구이 | 18,000원 | 구워지는 향이 좋아요"
+                            rows={4}
+                            className="w-full px-3 py-2 border border-green-300 rounded text-green-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                          />
+                          <p className="text-xs text-green-700 mt-1">💡 "메뉴명 | 가격 | 후기" 형식으로 입력하세요 (각 줄 = 1개 메뉴)</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 리뷰 표시 */}
+                    {placeInfo.reviews && placeInfo.reviews.length > 0 && (
+                      <div className="border-t border-green-200 pt-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                          <span className="text-xs font-semibold text-green-900">
+                            최신 리뷰 ({placeInfo.reviews.length}개)
+                          </span>
+                        </div>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {placeInfo.reviews.map((review: any, idx: number) => (
+                            <div key={idx} className="bg-white rounded p-2 border border-green-100">
+                              <div className="flex justify-between items-start gap-2">
+                                <div>
+                                  <p className="text-xs font-semibold text-gray-700">{review.author}</p>
+                                  <div className="flex gap-0.5 mt-0.5">
+                                    {Array(5)
+                                      .fill(0)
+                                      .map((_, i) => (
+                                        <Star
+                                          key={i}
+                                          className={`w-3 h-3 ${
+                                            i < review.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'
+                                          }`}
+                                        />
+                                      ))}
+                                  </div>
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">{review.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-green-700 mt-2">
+                          💡 리뷰들이 글 작성 시 참고됩니다 (Google Places에서 자동 수집)
+                        </p>
+                      </div>
+                    )}
+
                     <p className="text-xs text-green-700 mt-2">
                       이 정보는 글 생성 시 자동으로 포함됩니다
                     </p>

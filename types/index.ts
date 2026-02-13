@@ -269,6 +269,21 @@ export interface RefineContentResponse {
   error?: string;
 }
 
+// 가게 리뷰 관련 타입
+export interface PlaceReview {
+  author: string;
+  rating: number;
+  text: string;
+  time: string; // ISO timestamp
+}
+
+// 메뉴 정보 관련 타입
+export interface MenuInfo {
+  name: string;
+  price?: string;
+  description: string;
+}
+
 // 가게 정보 관련 타입
 export interface PlaceInfo {
   name: string;
@@ -279,6 +294,8 @@ export interface PlaceInfo {
   rating?: number;
   website?: string;
   nearbyTransit?: string;
+  reviews?: PlaceReview[];
+  menus?: MenuInfo[];
 }
 
 // Supabase 관련 타입 (추후 추가 예정)

@@ -7,6 +7,13 @@ if (!GOOGLE_PLACES_API_KEY) {
   console.warn('GOOGLE_PLACES_API_KEY가 설정되지 않았습니다');
 }
 
+interface GoogleReview {
+  author_name: string;
+  rating: number;
+  text: string;
+  time: number; // Unix timestamp
+}
+
 interface GooglePlaceResult {
   name: string;
   formatted_address: string;
@@ -16,6 +23,7 @@ interface GooglePlaceResult {
   };
   rating?: number;
   website?: string;
+  reviews?: GoogleReview[];
 }
 
 /**
@@ -46,13 +54,13 @@ export async function searchPlace(placeName: string): Promise<PlaceInfo | null> 
 
     const placeId = results[0].place_id;
 
-    // 2단계: Place Details (상세 정보)
+    // 2단계: Place Details (상세 정보 + 리뷰)
     const detailsResponse = await axios.get(
       'https://maps.googleapis.com/maps/api/place/details/json',
       {
         params: {
           place_id: placeId,
-          fields: 'name,formatted_address,formatted_phone_number,opening_hours,rating,website',
+          fields: 'name,formatted_address,formatted_phone_number,opening_hours,rating,website,reviews',
           key: GOOGLE_PLACES_API_KEY,
           language: 'ko',
         },
@@ -82,6 +90,16 @@ function formatPlaceInfo(
   parking: string,
   nearbyTransit: string
 ): PlaceInfo {
+  // 리뷰 변환 (최대 5개, API 한계)
+  const reviews = place.reviews
+    ? place.reviews.slice(0, 5).map((review) => ({
+        author: review.author_name,
+        rating: review.rating,
+        text: review.text,
+        time: new Date(review.time * 1000).toISOString(), // Unix timestamp → ISO
+      }))
+    : [];
+
   return {
     name: place.name,
     address: place.formatted_address,
@@ -91,6 +109,8 @@ function formatPlaceInfo(
     rating: place.rating,
     website: place.website,
     nearbyTransit,
+    reviews, // 리뷰 추가
+    menus: [], // 메뉴는 사용자가 입력
   };
 }
 

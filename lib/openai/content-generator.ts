@@ -80,6 +80,35 @@ FORMATTING RULES for place info:
    - "영업시간은 평일 오전 11시부터 오후 10시까지, 주말은 정오부터 오후 10시까지예요."
    - "주차는 건물 뒤쪽에서 가능하고, 지하철 역에서도 5분 거리라 접근성이 정말 좋아요."
    - "예약은 0507-1234-5678로 받고 있어요."`;
+
+      // 메뉴 정보 추가
+      if (placeInfo.menus && placeInfo.menus.length > 0) {
+        userPrompt += `\n\nRECOMMENDED MENU ITEMS:
+${placeInfo.menus
+  .map(
+    (menu: any) =>
+      `- ${menu.name}${menu.price ? ` (${menu.price})` : ''}: ${menu.description}`
+  )
+  .join('\n')}
+
+Include these menu items naturally in the content. Write about them with sensory details and personal impressions.`;
+      }
+
+      // 리뷰 정보 추가
+      if (placeInfo.reviews && placeInfo.reviews.length > 0) {
+        const reviewTexts = placeInfo.reviews
+          .map(
+            (review: any) =>
+              `- ${review.author} (${review.rating}★): ${review.text}`
+          )
+          .join('\n');
+
+        userPrompt += `\n\nCUSTOMER REVIEWS (for reference):
+${reviewTexts}
+
+Use these reviews as context to understand what customers appreciate about this place.
+Incorporate the essence of positive feedback naturally into your writing without directly quoting reviews.`;
+      }
     }
 
     userPrompt += `\n\nCRITICAL REQUIREMENTS (IN PRIORITY ORDER):
