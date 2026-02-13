@@ -1,3 +1,6 @@
+// ⭐ runtime은 반드시 import보다 먼저 선언해야 함
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from "next/server";
 import { refineBlogContent } from "@/lib/openai/content-generator";
 import type { ImageAnalysisResult, KeywordItem, PlaceInfo } from "@/types/index";

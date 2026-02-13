@@ -15,12 +15,25 @@ function getAuthClient(): Auth.GoogleAuth {
   let credentials: any;
 
   try {
+    // 디버깅: 환경 변수 확인
+    const hasJsonCreds = !!process.env.GOOGLE_DRIVE_CREDENTIALS;
+    const hasClientEmail = !!process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
+    const hasPrivateKey = !!process.env.GOOGLE_DRIVE_PRIVATE_KEY;
+
+    console.log("🔍 Google Drive 환경 변수 확인:", {
+      GOOGLE_DRIVE_CREDENTIALS: hasJsonCreds ? "(설정됨)" : "(설정 안됨)",
+      GOOGLE_DRIVE_CLIENT_EMAIL: hasClientEmail ? "(설정됨)" : "(설정 안됨)",
+      GOOGLE_DRIVE_PRIVATE_KEY: hasPrivateKey ? "(설정됨)" : "(설정 안됨)",
+    });
+
     // 방법 1: GOOGLE_DRIVE_CREDENTIALS JSON 문자열
     if (process.env.GOOGLE_DRIVE_CREDENTIALS) {
+      console.log("✅ GOOGLE_DRIVE_CREDENTIALS 사용");
       credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS);
     }
     // 방법 2: 개별 환경 변수
     else if (process.env.GOOGLE_DRIVE_CLIENT_EMAIL && process.env.GOOGLE_DRIVE_PRIVATE_KEY) {
+      console.log("✅ 개별 환경 변수 사용");
       credentials = {
         type: "service_account",
         project_id: process.env.GOOGLE_DRIVE_PROJECT_ID,
@@ -35,12 +48,15 @@ function getAuthClient(): Auth.GoogleAuth {
       };
     }
   } catch (error) {
-    console.error("Google Drive 인증 정보 파싱 오류:", error);
+    console.error("❌ Google Drive 인증 정보 파싱 오류:", error);
   }
 
   if (!credentials) {
+    console.error("❌ Google Drive 인증 정보가 설정되지 않았습니다");
     throw new Error("Google Drive 인증 정보가 설정되지 않았습니다. 환경 변수를 확인하세요.");
   }
+
+  console.log("✅ Google Drive 인증 정보 로드 완료");
 
   authClient = new google.auth.GoogleAuth({
     credentials,

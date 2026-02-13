@@ -1,3 +1,6 @@
+// ⭐ runtime은 반드시 import보다 먼저 선언해야 함
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { readBlogStyleFromGoogleDrive } from "@/lib/utils/google-drive";
 
