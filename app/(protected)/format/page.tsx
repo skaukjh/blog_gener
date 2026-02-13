@@ -264,11 +264,14 @@ export default function FormatPage() {
               </div>
 
               {/* 저장 위치 정보 */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
                 <p className="text-sm text-blue-800">
-                  <strong>💾 저장됨:</strong> 스타일이 <code className="bg-white px-2 py-1 rounded">.cache/blog-style.txt</code>에 저장되었습니다.
+                  <strong>☁️ Supabase:</strong> 스타일이 클라우드 데이터베이스에 저장되었습니다 (Vercel 환경 호환)
                 </p>
-                <p className="text-sm text-blue-800 mt-2">
+                <p className="text-sm text-blue-800">
+                  <strong>📱 로컬:</strong> sessionStorage에도 저장되어 즉시 사용 가능합니다
+                </p>
+                <p className="text-sm text-blue-800">
                   <strong>🤖 Assistant:</strong> OpenAI Assistant의 instruction에도 반영되었습니다.
                 </p>
               </div>

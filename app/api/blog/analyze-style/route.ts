@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyzeStyleCompact } from "@/lib/openai/blog-analyzer";
 import { updateAssistantInstructions } from "@/lib/openai/assistant";
 import blogStyleCache from "@/lib/utils/blog-style-memory-cache";
+import { saveBlogStyleToSupabase } from "@/lib/utils/style-storage";
 import type { BlogPost } from "@/types/index";
 
 interface AnalyzeStyleCompactRequest {
@@ -97,8 +98,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<AnalyzeSt
       throw new Error(`스타일 캐시 저장 실패: ${cacheErr instanceof Error ? cacheErr.message : "알 수 없는 오류"}`);
     }
 
-    // ⚠️ TODO: Supabase에 스타일 저장 (추후 구현)
-    // await saveBlogStyleToSupabase(compactStyle);
+    // Supabase에 스타일 저장 (Vercel 환경 호환)
+    try {
+      const saved = await saveBlogStyleToSupabase(compactStyle);
+      if (saved) {
+        console.log("✅ Supabase 스타일 저장 완료");
+      } else {
+        console.warn("⚠️ Supabase 저장 실패했지만 계속 진행합니다");
+      }
+    } catch (supabaseErr) {
+      console.warn("⚠️ Supabase 저장 오류:", supabaseErr);
+      // Supabase 오류는 무시하고 계속 진행 (메모리 캐시로 충분)
+    }
 
     // Assistant의 instructions 업데이트
     const assistantId = process.env.OPENAI_ASSISTANT_ID;
