@@ -280,3 +280,40 @@ export interface PlaceInfo {
   website?: string;
   nearbyTransit?: string;
 }
+
+// Google OAuth 관련 타입
+export interface GoogleOAuthToken {
+  access_token: string;
+  refresh_token?: string;
+  token_type: string;
+  expiry_date: number;
+  scope: string;
+}
+
+export interface GoogleOAuthUser {
+  id: string;
+  email: string;
+  name: string;
+  picture?: string;
+}
+
+export interface GoogleAuthUrlResponse {
+  success: boolean;
+  authUrl?: string;
+  url?: string;
+  state?: string;
+  error?: string;
+  message?: string;
+}
+
+export interface GoogleCallbackRequest {
+  code: string;
+  state?: string;
+}
+
+export interface GoogleCallbackResponse {
+  success: boolean;
+  user?: GoogleOAuthUser;
+  error?: string;
+  message?: string;
+}
