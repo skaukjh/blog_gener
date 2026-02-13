@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeStyleCompact } from "@/lib/openai/blog-analyzer";
 import { updateAssistantInstructions } from "@/lib/openai/assistant";
-import { saveBlogStyleToGoogleDrive } from "@/lib/utils/google-drive";
+import { saveBlogStyleToFile } from "@/lib/utils/blog-style-storage";
 import type { BlogPost } from "@/types/index";
 
 interface AnalyzeStyleCompactRequest {
@@ -88,12 +88,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<AnalyzeSt
       (styleAnalysisOutputTokens / 1000000) * 10;
     const styleAnalysisCostKRW = Math.round(styleAnalysisCostUSD * 1300);
 
-    // 스타일을 Google Drive에 저장
+    // 스타일을 로컬 파일에 저장
     try {
-      await saveBlogStyleToGoogleDrive(compactStyle);
-    } catch (driveErr) {
-      console.error("Google Drive 저장 오류:", driveErr);
-      throw new Error(`스타일 저장 실패: ${driveErr instanceof Error ? driveErr.message : "알 수 없는 오류"}`);
+      await saveBlogStyleToFile(compactStyle);
+    } catch (fileErr) {
+      console.error("파일 저장 오류:", fileErr);
+      throw new Error(`스타일 저장 실패: ${fileErr instanceof Error ? fileErr.message : "알 수 없는 오류"}`);
     }
 
     // Assistant의 instructions 업데이트

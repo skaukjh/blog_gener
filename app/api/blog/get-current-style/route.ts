@@ -2,11 +2,11 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { readBlogStyleFromGoogleDrive } from "@/lib/utils/google-drive";
+import { readBlogStyleFromFile } from "@/lib/utils/blog-style-storage";
 
 export async function GET() {
   try {
-    const style = await readBlogStyleFromGoogleDrive();
+    const style = await readBlogStyleFromFile();
 
     if (!style) {
       return NextResponse.json(
@@ -28,7 +28,7 @@ export async function GET() {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Google Drive 스타일 조회 오류:", error);
+    console.error("파일 스타일 조회 오류:", error);
     return NextResponse.json(
       {
         success: false,

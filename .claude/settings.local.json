@@ -35,7 +35,9 @@
       "Bash(python:*)",
       "Bash(powershell -Command:*)",
       "WebSearch",
-      "Bash(wc -l:*)"
+      "Bash(wc -l:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
