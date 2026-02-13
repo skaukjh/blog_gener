@@ -297,11 +297,14 @@ export function validateKeywordInsertion(
 
 /**
  * 가게 정보를 블로그 글 형식으로 포맷팅합니다
- * 사용자가 요청한 형식:
- * 가게명
- * 📍 주소
- * ⏰ 영업시간
- * 📞 전화번호
+ * 사용자가 요청한 정확한 형식:
+ * 원조해장촌 뼈구이한판 감자탕 선릉역점
+ * 📍 서울 강남구 선릉로86길 28 지상2층
+ * ⏰ 월~금 11:00 - 23:00
+ * 라스트오더 22:00
+ * 토~일 12:00 - 22:00
+ * 라스트오더 21:00
+ * 📞 0507-1407-9915
  */
 function formatPlaceInfo(placeInfo: PlaceInfo): string {
   let info = `${placeInfo.name}\n`;
@@ -311,19 +314,17 @@ function formatPlaceInfo(placeInfo: PlaceInfo): string {
   }
 
   if (placeInfo.openingHours && placeInfo.openingHours.length > 0) {
-    info += `⏰ ${placeInfo.openingHours.join("\n")}\n`;
+    // 첫 번째 영업시간 앞에 ⏰ 추가
+    info += `⏰ ${placeInfo.openingHours[0]}\n`;
+
+    // 나머지 영업시간들은 그대로 추가 (라스트오더 등)
+    for (let i = 1; i < placeInfo.openingHours.length; i++) {
+      info += `${placeInfo.openingHours[i]}\n`;
+    }
   }
 
   if (placeInfo.phone) {
     info += `📞 ${placeInfo.phone}\n`;
-  }
-
-  if (placeInfo.parking) {
-    info += `주차: ${placeInfo.parking}\n`;
-  }
-
-  if (placeInfo.nearbyTransit) {
-    info += `대중교통: ${placeInfo.nearbyTransit}\n`;
   }
 
   return info;

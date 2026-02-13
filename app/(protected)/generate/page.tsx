@@ -670,24 +670,31 @@ export default function GeneratePage() {
 
                 {/* 가게 정보 표시 */}
                 {placeInfo && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
                     <p className="text-sm font-semibold text-green-900">✅ 가게 정보를 가져왔습니다</p>
-                    <div className="text-xs text-green-800 space-y-1">
+                    <div className="text-xs text-green-800 space-y-2">
                       <p><strong>이름:</strong> {placeInfo.name}</p>
                       <p><strong>주소:</strong> {placeInfo.address}</p>
                       {placeInfo.phone && <p><strong>전화:</strong> {placeInfo.phone}</p>}
-                      {placeInfo.openingHours && placeInfo.openingHours.length > 0 && (
-                        <div>
-                          <strong>영업시간:</strong>
-                          <ul className="ml-4 mt-1">
-                            {placeInfo.openingHours.map((hour: string, idx: number) => (
-                              <li key={idx}>{hour}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      <p><strong>주차:</strong> {placeInfo.parking}</p>
-                      <p><strong>대중교통:</strong> {placeInfo.nearbyTransit}</p>
+
+                      {/* 영업시간 직접 편집 */}
+                      <div>
+                        <strong>영업시간:</strong>
+                        <textarea
+                          value={placeInfo.openingHours?.join('\n') || ''}
+                          onChange={(e) => {
+                            const hours = e.target.value.split('\n').filter(h => h.trim());
+                            setPlaceInfo({ ...placeInfo, openingHours: hours });
+                          }}
+                          placeholder="월~금 11:00 - 23:00&#10;라스트오더 22:00&#10;토~일 12:00 - 22:00&#10;라스트오더 21:00"
+                          rows={4}
+                          className="w-full px-3 py-2 mt-1 border border-green-300 rounded text-green-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                        />
+                        <p className="text-xs text-green-700 mt-1">💡 원하는 형식으로 직접 편집할 수 있습니다</p>
+                      </div>
+
+                      {placeInfo.parking && <p><strong>주차:</strong> {placeInfo.parking}</p>}
+                      {placeInfo.nearbyTransit && <p><strong>대중교통:</strong> {placeInfo.nearbyTransit}</p>}
                     </div>
                     <p className="text-xs text-green-700 mt-2">
                       이 정보는 글 생성 시 자동으로 포함됩니다
