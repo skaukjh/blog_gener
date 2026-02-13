@@ -33,6 +33,7 @@ export default function GeneratePage() {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [menuInput, setMenuInput] = useState('');
   const [showMenuInput, setShowMenuInput] = useState(false);
+  const [selectedReviews, setSelectedReviews] = useState<number[]>([]); // 선택된 리뷰 인덱스
 
   // 초기 로드 시 저장된 스타일 조회 (sessionStorage 우선)
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function GeneratePage() {
     });
   };
 
-  // 메뉴 정보 파싱 (메뉴명 | 가격 | 후기 형식)
+  // 메뉴 정보 파싱 (메뉴명 | 가격 형식)
   const parseMenuInput = (): MenuInfo[] => {
     if (!menuInput.trim()) return [];
 
@@ -133,7 +134,7 @@ export default function GeneratePage() {
         return {
           name: parts[0] || '',
           price: parts[1] || undefined,
-          description: parts[2] || '',
+          description: '', // 설명은 빈 문자열
         };
       })
       .filter((menu) => menu.name); // 이름이 있는 메뉴만
@@ -194,10 +195,17 @@ export default function GeneratePage() {
 
       // 메뉴 정보 파싱 및 placeInfo에 추가
       const menus = parseMenuInput();
+
+      // 선택된 리뷰만 필터링
+      const filteredReviews = placeInfo?.reviews
+        ? placeInfo.reviews.filter((_: any, idx: number) => selectedReviews.includes(idx))
+        : [];
+
       const placeInfoWithMenus = placeInfo
         ? {
             ...placeInfo,
             menus,
+            reviews: filteredReviews, // 선택된 리뷰만 전달
           }
         : undefined;
 
@@ -736,15 +744,23 @@ export default function GeneratePage() {
                       </button>
 
                       {showMenuInput && (
-                        <div className="mt-3">
+                        <div className="mt-3 space-y-2">
+                          <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                            <p className="text-xs font-semibold text-blue-900 mb-2">📝 입력 형식 (메뉴명 | 가격)</p>
+                            <div className="text-xs text-blue-800 font-mono space-y-1 bg-white rounded p-2">
+                              <p>감자탕 | 15,000원</p>
+                              <p>뼈구이 | 18,000원</p>
+                              <p>우거지 | 12,000원</p>
+                            </div>
+                          </div>
                           <textarea
                             value={menuInput}
                             onChange={(e) => setMenuInput(e.target.value)}
-                            placeholder="메뉴명 | 가격 | 후기&#10;감자탕 | 15,000원 | 고기가 푸짐하고 국물이 진해요&#10;뼈구이 | 18,000원 | 구워지는 향이 좋아요"
+                            placeholder="감자탕 | 15,000원&#10;뼈구이 | 18,000원&#10;우거지 | 12,000원"
                             rows={4}
                             className="w-full px-3 py-2 border border-green-300 rounded text-green-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
                           />
-                          <p className="text-xs text-green-700 mt-1">💡 "메뉴명 | 가격 | 후기" 형식으로 입력하세요 (각 줄 = 1개 메뉴)</p>
+                          <p className="text-xs text-green-700">💡 각 줄에 하나의 메뉴를 입력하세요 (선택사항)</p>
                         </div>
                       )}
                     </div>
@@ -752,38 +768,52 @@ export default function GeneratePage() {
                     {/* 리뷰 표시 */}
                     {placeInfo.reviews && placeInfo.reviews.length > 0 && (
                       <div className="border-t border-green-200 pt-3">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-3">
                           <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                           <span className="text-xs font-semibold text-green-900">
-                            최신 리뷰 ({placeInfo.reviews.length}개)
+                            최신 리뷰 ({placeInfo.reviews.length}개) - 글 작성에 참고할 리뷰 선택
                           </span>
                         </div>
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
                           {placeInfo.reviews.map((review: any, idx: number) => (
-                            <div key={idx} className="bg-white rounded p-2 border border-green-100">
-                              <div className="flex justify-between items-start gap-2">
-                                <div>
-                                  <p className="text-xs font-semibold text-gray-700">{review.author}</p>
-                                  <div className="flex gap-0.5 mt-0.5">
-                                    {Array(5)
-                                      .fill(0)
-                                      .map((_, i) => (
-                                        <Star
-                                          key={i}
-                                          className={`w-3 h-3 ${
-                                            i < review.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'
-                                          }`}
-                                        />
-                                      ))}
+                            <label key={idx} className="flex gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selectedReviews.includes(idx)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedReviews([...selectedReviews, idx]);
+                                  } else {
+                                    setSelectedReviews(selectedReviews.filter((i) => i !== idx));
+                                  }
+                                }}
+                                className="mt-1 w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                              />
+                              <div className="flex-1 bg-white rounded p-2 border border-green-100">
+                                <div className="flex items-start gap-2">
+                                  <div className="flex-1">
+                                    <p className="text-xs font-semibold text-gray-700">{review.author}</p>
+                                    <div className="flex gap-0.5 mt-0.5">
+                                      {Array(5)
+                                        .fill(0)
+                                        .map((_, i) => (
+                                          <Star
+                                            key={i}
+                                            className={`w-3 h-3 ${
+                                              i < review.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'
+                                            }`}
+                                          />
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-600 mt-1">{review.text}</p>
                                   </div>
                                 </div>
                               </div>
-                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">{review.text}</p>
-                            </div>
+                            </label>
                           ))}
                         </div>
                         <p className="text-xs text-green-700 mt-2">
-                          💡 리뷰들이 글 작성 시 참고됩니다 (Google Places에서 자동 수집)
+                          💡 선택된 리뷰가 글 작성 시 참고됩니다 ({selectedReviews.length}개 선택됨)
                         </p>
                       </div>
                     )}

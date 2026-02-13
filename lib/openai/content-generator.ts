@@ -85,13 +85,11 @@ FORMATTING RULES for place info:
       if (placeInfo.menus && placeInfo.menus.length > 0) {
         userPrompt += `\n\nRECOMMENDED MENU ITEMS:
 ${placeInfo.menus
-  .map(
-    (menu: any) =>
-      `- ${menu.name}${menu.price ? ` (${menu.price})` : ''}: ${menu.description}`
-  )
+  .map((menu: any) => `- ${menu.name}${menu.price ? ` (${menu.price})` : ''}`)
   .join('\n')}
 
-Include these menu items naturally in the content. Write about them with sensory details and personal impressions.`;
+Include these menu items naturally in the content with sensory descriptions and personal impressions.
+Mention prices naturally when relevant.`;
       }
 
       // 리뷰 정보 추가
