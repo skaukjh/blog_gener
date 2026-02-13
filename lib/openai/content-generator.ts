@@ -297,16 +297,25 @@ export function validateKeywordInsertion(
 
 /**
  * 가게 정보를 블로그 글 형식으로 포맷팅합니다
+ * 사용자가 요청한 형식:
+ * 가게명
+ * 📍 주소
+ * ⏰ 영업시간
+ * 📞 전화번호
  */
 function formatPlaceInfo(placeInfo: PlaceInfo): string {
-  let info = `가게명: ${placeInfo.name}\n주소: ${placeInfo.address}\n`;
+  let info = `${placeInfo.name}\n`;
+
+  if (placeInfo.address) {
+    info += `📍 ${placeInfo.address}\n`;
+  }
 
   if (placeInfo.openingHours && placeInfo.openingHours.length > 0) {
-    info += `영업시간:\n${placeInfo.openingHours.map((h) => `  ${h}`).join("\n")}\n`;
+    info += `⏰ ${placeInfo.openingHours.join("\n")}\n`;
   }
 
   if (placeInfo.phone) {
-    info += `전화: ${placeInfo.phone}\n`;
+    info += `📞 ${placeInfo.phone}\n`;
   }
 
   if (placeInfo.parking) {
@@ -388,10 +397,24 @@ Output ONLY the modified blog post content. No explanations.`;
     const markers = parseMarkers(refinedContent);
 
     if (markers.length !== expectedMarkerCount) {
-      // 마커 개수가 맞지 않으면 원본 마커를 유지
-      console.warn(`마커 개수 불일치: 예상 ${expectedMarkerCount}개, 실제 ${markers.length}개. 원본 마커 유지`);
-      // 마커 위치를 유지하고 텍스트만 수정
-      refinedContent = currentContent;
+      console.warn(`마커 개수 불일치: 예상 ${expectedMarkerCount}개, 실제 ${markers.length}개. 마커 재정렬 시도`);
+
+      // 마커가 없으면 원본의 마커를 복사해서 추가
+      if (markers.length === 0) {
+        const originalMarkers = parseMarkers(currentContent);
+        if (originalMarkers.length === expectedMarkerCount) {
+          // 원본에서 마커 위치 정보 추출
+          for (let i = 0; i < expectedMarkerCount; i++) {
+            refinedContent += `\n[IMAGE_${i + 1}]`;
+          }
+        }
+      } else if (markers.length > expectedMarkerCount) {
+        // 초과 마커 제거
+        refinedContent = removeExcessMarkers(refinedContent, expectedMarkerCount);
+      } else if (markers.length < expectedMarkerCount) {
+        // 부족한 마커 추가
+        refinedContent = insertMissingMarkers(refinedContent, expectedMarkerCount);
+      }
     }
 
     return refinedContent;

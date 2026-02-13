@@ -280,7 +280,7 @@ export default function GeneratePage() {
 
       const assistantMessage: ChatMessage = {
         role: 'assistant',
-        content: requestText,
+        content: data.refinedContent,
         timestamp: new Date().toISOString(),
       };
 
@@ -292,7 +292,8 @@ export default function GeneratePage() {
         content: data.refinedContent,
       });
 
-      console.log('콘텐츠가 수정되었습니다');
+      console.log('✅ 콘텐츠가 수정되었습니다');
+      console.log('수정된 콘텐츠 길이:', data.refinedContent.length);
     } catch (error) {
       console.error('수정 오류:', error);
       const errorMessage = error instanceof Error ? error.message : '수정 중 오류가 발생했습니다';

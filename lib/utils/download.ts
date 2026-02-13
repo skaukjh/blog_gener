@@ -115,20 +115,45 @@ export async function generateDocx(
  */
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
-    if (navigator?.clipboard) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } else {
-      // Fallback for older browsers
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      document.body.appendChild(textArea);
-      textArea.select();
-      const success = document.execCommand("copy");
-      document.body.removeChild(textArea);
-      return success;
+    // 모던 브라우저 (HTTPS 또는 localhost)
+    if (navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        console.log("✅ 클립보드 복사 성공 (Clipboard API)");
+        return true;
+      } catch (clipboardErr) {
+        console.warn("⚠️ Clipboard API 실패, Fallback 시도:", clipboardErr);
+        // Fallback으로 진행
+      }
     }
-  } catch {
+
+    // Fallback: 구형 브라우저 또는 Clipboard API 실패
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "-9999px";
+    document.body.appendChild(textArea);
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      textArea.setSelectionRange(0, text.length);
+    } else {
+      textArea.select();
+    }
+
+    const success = document.execCommand("copy");
+    document.body.removeChild(textArea);
+
+    if (success) {
+      console.log("✅ 클립보드 복사 성공 (Fallback)");
+    } else {
+      console.warn("⚠️ 클립보드 복사 실패");
+    }
+
+    return success;
+  } catch (error) {
+    console.error("❌ 클립보드 복사 중 오류:", error);
     return false;
   }
 }
