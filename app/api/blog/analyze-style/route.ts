@@ -4,7 +4,6 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeStyleCompact } from "@/lib/openai/blog-analyzer";
 import { updateAssistantInstructions } from "@/lib/openai/assistant";
-import { uploadFileToDrive } from "@/lib/utils/google-drive-upload-v2";
 import blogStyleCache from "@/lib/utils/blog-style-memory-cache";
 import type { BlogPost } from "@/types/index";
 
@@ -89,25 +88,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<AnalyzeSt
       (styleAnalysisOutputTokens / 1000000) * 10;
     const styleAnalysisCostKRW = Math.round(styleAnalysisCostUSD * 1300);
 
-    // 1️⃣ 스타일을 메모리 캐시에 저장 (필수)
+    // 스타일을 메모리 캐시에 저장
     try {
       blogStyleCache.set(compactStyle);
+      console.log("✅ 블로그 스타일 메모리 캐시 저장 완료");
     } catch (cacheErr) {
       console.error("❌ 메모리 캐시 저장 오류:", cacheErr);
-      // 메모리 캐시는 필수적으로 작동해야 함
       throw new Error(`스타일 캐시 저장 실패: ${cacheErr instanceof Error ? cacheErr.message : "알 수 없는 오류"}`);
     }
 
-    // 2️⃣ Google Drive에도 저장 (선택적)
-    try {
-      console.log("📤 스타일을 Google Drive에 저장 시도...");
-      await uploadFileToDrive("blog_style.txt", compactStyle, "text/plain");
-      console.log("✅ Google Drive 저장 성공");
-    } catch (driveErr) {
-      console.warn("⚠️ Google Drive 저장 실패 (하지만 메모리 캐시는 있음):", driveErr);
-      console.warn("   → 메모리에서 스타일을 계속 사용합니다");
-      // Google Drive 저장 실패는 무시 (메모리 캐시가 있으므로)
-    }
+    // ⚠️ TODO: Supabase에 스타일 저장 (추후 구현)
+    // await saveBlogStyleToSupabase(compactStyle);
 
     // Assistant의 instructions 업데이트
     const assistantId = process.env.OPENAI_ASSISTANT_ID;
