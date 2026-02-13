@@ -298,6 +298,57 @@ export interface PlaceInfo {
   menus?: MenuInfo[];
 }
 
+// 네이버 블로그 이웃 자동 좋아요 관련 타입
+export interface NeighborCredentials {
+  blogId: string;
+  blogPassword: string;
+  encryptedAt: string;
+}
+
+export interface NeighborLoginRequest {
+  blogId: string;
+  blogPassword: string;
+  decryptPassword: string;
+}
+
+export interface NeighborLoginResponse {
+  success: boolean;
+  message: string;
+  sessionId?: string;
+  error?: string;
+}
+
+export interface NeighborInfo {
+  blogName: string;
+  blogUrl: string;
+  nickname: string;
+}
+
+export interface BlogPostWithLike {
+  title: string;
+  url: string;
+  date: string;
+  hasLike: boolean;
+  blogName?: string;
+  blogUrl?: string;
+}
+
+export interface NeighborLikeRequest {
+  blogId: string;
+  blogPassword: string;
+  decryptPassword: string;
+  daysLimit?: number;
+  maxNeighbors?: number;
+}
+
+export interface NeighborLikeResponse {
+  success: boolean;
+  processed: number;
+  liked: number;
+  errors: string[];
+  message?: string;
+}
+
 // Supabase 관련 타입 (추후 추가 예정)
 // export interface SupabaseUser { ... }
 // export interface SupabaseToken { ... }

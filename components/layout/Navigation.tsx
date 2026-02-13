@@ -21,6 +21,7 @@ export default function Navigation() {
 
   const isGeneratePage = pathname === '/generate';
   const isFormatPage = pathname === '/format';
+  const isNeighborPage = pathname === '/neighbor';
 
   return (
     <nav className="glass-effect border-b border-white/50 sticky top-0 z-50 shadow-md-soft">
@@ -56,6 +57,17 @@ export default function Navigation() {
               >
                 <span>⚙️</span>
                 포맷 관리
+              </button>
+              <button
+                onClick={() => router.push('/neighbor')}
+                className={`px-4 py-2 rounded-md font-medium smooth-transition flex items-center gap-2 ${
+                  isNeighborPage
+                    ? 'bg-white shadow-md-soft text-primary'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <span>🤝</span>
+                이웃 좋아요
               </button>
             </div>
           </div>

@@ -35,6 +35,14 @@ export async function generateBlogContent(
 
     const imageCount = imageAnalysis.images.length;
 
+    // 이미지별 설명을 user prompt에 포함
+    const imageDescriptions = imageAnalysis.images
+      .map(
+        (img) =>
+          `Image ${img.idx}: ${img.desc} (Mood: ${img.mood}, Visual: ${img.visualDetails || 'N/A'})`
+      )
+      .join('\n');
+
     let userPrompt = `Generate a Korean blog post with the following specifications:
 
 Topic: ${topic}
@@ -44,19 +52,25 @@ Length: ${length}
 Keywords to include naturally (${keywords.length} total):
 ${keywordList}
 
-Image placement:
+⚠️ IMAGE PLACEMENT (CRITICAL - CONTEXT-BASED):
 - TOTAL IMAGES: ${imageCount}
 - Use EXACTLY ${imageCount} image marker(s): ${Array.from({ length: imageCount }, (_, i) => `[IMAGE_${i + 1}]`).join(", ")}
-- Place markers naturally in the content where images enhance the narrative
+- RULE: Place [IMAGE_N] markers where they fit the NARRATIVE FLOW naturally
+- Each marker MUST have 1-2 sentences of RELATED context before and after it
+- RULE: Space markers evenly (don't place multiple markers together)
+- RULE: Link marker placement to what the image shows (see image descriptions below)
 
-Image context:
+Image context and placement guide:
 - Theme: ${imageAnalysis.overall.theme}
 - Style: ${imageAnalysis.overall.style}
-- Usage suggestions: ${
+- Suggestions: ${
       Array.isArray(imageAnalysis.overall.suggestions)
         ? imageAnalysis.overall.suggestions.join("; ")
         : "Place images naturally throughout the content"
-    }`;
+    }
+
+Detailed image descriptions (use these to decide WHERE to place markers):
+${imageDescriptions}`;
 
     if (startSentence) {
       userPrompt += `\n\nStart with: "${startSentence}"`;
@@ -68,28 +82,32 @@ Image context:
 
     if (placeInfo) {
       const placeInfoText = formatPlaceInfo(placeInfo);
-      userPrompt += `\n\nPLACE INFORMATION (insert naturally at the BEGINNING, within first 2-3 paragraphs):
+      userPrompt += `\n\n⚠️ CRITICAL - PLACE INFORMATION FORMAT (MANDATORY - USE THIS EXACT FORMAT):
 
 ${placeInfoText}
 
-FORMATTING RULES for place info:
-1. Write the info naturally as part of the introduction
-2. Use warm, friendly tone - not a list
-3. Combine information into flowing sentences
-4. Examples:
-   - "영업시간은 평일 오전 11시부터 오후 10시까지, 주말은 정오부터 오후 10시까지예요."
-   - "주차는 건물 뒤쪽에서 가능하고, 지하철 역에서도 5분 거리라 접근성이 정말 좋아요."
-   - "예약은 0507-1234-5678로 받고 있어요."`;
+CRITICAL RULES FOR PLACE INFORMATION:
+1. This exact format MUST appear in the introduction (first 2-3 paragraphs)
+2. DO NOT modify the format, spacing, or emojis
+3. Place it after a natural introduction sentence, like:
+   "안녕하세요! 오늘은 제가 자주 방문하는 맛집을 소개해드릴게요.
+
+   ${placeInfoText.split('\n')[0]} (restaurant name)
+   [rest of format]
+
+   여기는 진짜 정말 좋은 곳이에요..."
+
+4. After the place information block, continue with your story and detailed descriptions`;
 
       // 메뉴 정보 추가
       if (placeInfo.menus && placeInfo.menus.length > 0) {
-        userPrompt += `\n\nRECOMMENDED MENU ITEMS:
+        userPrompt += `\n\nRECOMMENDED MENU ITEMS (mention these naturally in your writing):
 ${placeInfo.menus
   .map((menu: any) => `- ${menu.name}${menu.price ? ` (${menu.price})` : ''}`)
   .join('\n')}
 
-Include these menu items naturally in the content with sensory descriptions and personal impressions.
-Mention prices naturally when relevant.`;
+Guidelines: Describe these menu items with visual details and personal impressions.
+Focus on what you can see in the images. Mention prices naturally when relevant.`;
       }
 
       // 리뷰 정보 추가
@@ -101,11 +119,12 @@ Mention prices naturally when relevant.`;
           )
           .join('\n');
 
-        userPrompt += `\n\nCUSTOMER REVIEWS (for reference):
+        userPrompt += `\n\nCUSTOMER REVIEWS (use as context, not direct quotes):
 ${reviewTexts}
 
-Use these reviews as context to understand what customers appreciate about this place.
-Incorporate the essence of positive feedback naturally into your writing without directly quoting reviews.`;
+Use these reviews to understand what customers value about this place.
+Weave positive aspects naturally into your own writing - don't quote directly.
+Focus on visual and personal observations rather than copying reviews.`;
       }
     }
 
