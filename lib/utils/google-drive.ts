@@ -1,69 +1,56 @@
 import { google } from "googleapis";
-import type { Auth } from "googleapis";
+import type { drive_v3 } from "googleapis";
 
-let authClient: Auth.GoogleAuth | null = null;
+let driveInstance: drive_v3.Drive | null = null;
 
 /**
- * Google Drive API 클라이언트 초기화
+ * Google Drive 인스턴스 초기화
+ * GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 환경 변수에서 base64로 인코딩된 서비스 계정 키를 읽음
  */
-function getAuthClient(): Auth.GoogleAuth {
-  if (authClient) {
-    return authClient;
+function getDriveInstance(): drive_v3.Drive {
+  if (driveInstance) {
+    return driveInstance;
   }
-
-  // 환경 변수에서 인증 정보 읽기
-  let credentials: any;
 
   try {
-    // 디버깅: 환경 변수 확인
-    const hasJsonCreds = !!process.env.GOOGLE_DRIVE_CREDENTIALS;
-    const hasClientEmail = !!process.env.GOOGLE_DRIVE_CLIENT_EMAIL;
-    const hasPrivateKey = !!process.env.GOOGLE_DRIVE_PRIVATE_KEY;
+    // 환경 변수 확인
+    const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64;
 
-    console.log("🔍 Google Drive 환경 변수 확인:", {
-      GOOGLE_DRIVE_CREDENTIALS: hasJsonCreds ? "(설정됨)" : "(설정 안됨)",
-      GOOGLE_DRIVE_CLIENT_EMAIL: hasClientEmail ? "(설정됨)" : "(설정 안됨)",
-      GOOGLE_DRIVE_PRIVATE_KEY: hasPrivateKey ? "(설정됨)" : "(설정 안됨)",
+    if (!base64Key) {
+      console.error("❌ GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 환경 변수가 설정되지 않았습니다");
+      throw new Error(
+        "GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 환경 변수가 설정되지 않았습니다. Vercel 환경 변수를 확인하세요."
+      );
+    }
+
+    // Base64 디코딩
+    console.log("🔍 Base64 환경 변수에서 서비스 계정 키 읽는 중...");
+    const keyBuffer = Buffer.from(base64Key, "base64");
+    const keyString = keyBuffer.toString("utf8");
+    const credentials = JSON.parse(keyString);
+
+    console.log("✅ 서비스 계정 키 파싱 완료");
+    console.log("📧 클라이언트 이메일:", credentials.client_email);
+
+    // Google Auth 초기화
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/drive"],
     });
 
-    // 방법 1: GOOGLE_DRIVE_CREDENTIALS JSON 문자열
-    if (process.env.GOOGLE_DRIVE_CREDENTIALS) {
-      console.log("✅ GOOGLE_DRIVE_CREDENTIALS 사용");
-      credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS);
-    }
-    // 방법 2: 개별 환경 변수
-    else if (process.env.GOOGLE_DRIVE_CLIENT_EMAIL && process.env.GOOGLE_DRIVE_PRIVATE_KEY) {
-      console.log("✅ 개별 환경 변수 사용");
-      credentials = {
-        type: "service_account",
-        project_id: process.env.GOOGLE_DRIVE_PROJECT_ID,
-        private_key_id: process.env.GOOGLE_DRIVE_PRIVATE_KEY_ID,
-        private_key: process.env.GOOGLE_DRIVE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-        client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL,
-        client_id: process.env.GOOGLE_DRIVE_CLIENT_ID,
-        auth_uri: "https://accounts.google.com/o/oauth2/auth",
-        token_uri: "https://oauth2.googleapis.com/token",
-        auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-        client_x509_cert_url: process.env.GOOGLE_DRIVE_CLIENT_X509_CERT_URL,
-      };
-    }
+    // Google Drive 인스턴스 생성
+    driveInstance = google.drive({
+      version: "v3",
+      auth,
+    });
+
+    console.log("✅ Google Drive 클라이언트 초기화 완료");
+
+    return driveInstance;
   } catch (error) {
-    console.error("❌ Google Drive 인증 정보 파싱 오류:", error);
+    console.error("❌ Google Drive 클라이언트 초기화 오류:", error);
+    throw error;
   }
-
-  if (!credentials) {
-    console.error("❌ Google Drive 인증 정보가 설정되지 않았습니다");
-    throw new Error("Google Drive 인증 정보가 설정되지 않았습니다. 환경 변수를 확인하세요.");
-  }
-
-  console.log("✅ Google Drive 인증 정보 로드 완료");
-
-  authClient = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
-
-  return authClient;
 }
 
 /**
@@ -71,8 +58,7 @@ function getAuthClient(): Auth.GoogleAuth {
  */
 async function findFileByName(fileName: string): Promise<string | null> {
   try {
-    const auth = getAuthClient();
-    const drive = google.drive({ version: "v3", auth });
+    const drive = getDriveInstance();
 
     const response = await drive.files.list({
       q: `name='${fileName.replace(/'/g, "\\'")}' and trashed=false`,
@@ -97,8 +83,7 @@ async function findFileByName(fileName: string): Promise<string | null> {
  */
 export async function saveBlogStyleToGoogleDrive(content: string): Promise<string> {
   try {
-    const auth = getAuthClient();
-    const drive = google.drive({ version: "v3", auth });
+    const drive = getDriveInstance();
     const fileName = "blog_style.txt";
     const mimeType = "text/plain";
 
@@ -109,6 +94,7 @@ export async function saveBlogStyleToGoogleDrive(content: string): Promise<strin
 
     if (existingFileId) {
       // 기존 파일 업데이트
+      console.log(`📝 블로그 스타일 파일 업데이트 중: ${existingFileId}`);
       await drive.files.update({
         fileId: existingFileId,
         media: {
@@ -117,9 +103,10 @@ export async function saveBlogStyleToGoogleDrive(content: string): Promise<strin
         },
       });
       fileId = existingFileId;
-      console.log(`블로그 스타일 파일 업데이트: ${fileId}`);
+      console.log(`✅ 블로그 스타일 파일 업데이트 완료: ${fileId}`);
     } else {
       // 새 파일 생성
+      console.log("📝 블로그 스타일 파일 생성 중...");
       const response = await drive.files.create({
         requestBody: {
           name: fileName,
@@ -133,12 +120,12 @@ export async function saveBlogStyleToGoogleDrive(content: string): Promise<strin
         fields: "id",
       });
       fileId = response.data.id || "";
-      console.log(`블로그 스타일 파일 생성: ${fileId}`);
+      console.log(`✅ 블로그 스타일 파일 생성 완료: ${fileId}`);
     }
 
     return fileId;
   } catch (error) {
-    console.error("Google Drive 저장 오류:", error);
+    console.error("❌ Google Drive 저장 오류:", error);
     throw error;
   }
 }
@@ -148,17 +135,19 @@ export async function saveBlogStyleToGoogleDrive(content: string): Promise<strin
  */
 export async function readBlogStyleFromGoogleDrive(): Promise<string | null> {
   try {
-    const auth = getAuthClient();
-    const drive = google.drive({ version: "v3", auth });
+    const drive = getDriveInstance();
     const fileName = "blog_style.txt";
 
     // 파일 찾기
+    console.log("🔍 Google Drive에서 블로그 스타일 파일 찾는 중...");
     const fileId = await findFileByName(fileName);
 
     if (!fileId) {
-      console.log("블로그 스타일 파일이 없습니다");
+      console.log("⚠️ 블로그 스타일 파일이 없습니다");
       return null;
     }
+
+    console.log(`📖 파일 읽는 중: ${fileId}`);
 
     // 파일 내용 읽기
     const response = await drive.files.get(
@@ -174,6 +163,7 @@ export async function readBlogStyleFromGoogleDrive(): Promise<string | null> {
       const stream = response.data;
 
       if (typeof stream === "string") {
+        console.log("✅ 블로그 스타일 읽기 완료");
         resolve(stream);
         return;
       }
@@ -183,27 +173,33 @@ export async function readBlogStyleFromGoogleDrive(): Promise<string | null> {
       });
 
       stream.on("end", () => {
+        console.log("✅ 블로그 스타일 읽기 완료");
         resolve(content);
       });
 
       stream.on("error", (error: Error) => {
+        console.error("❌ 파일 읽기 스트림 오류:", error);
         reject(error);
       });
     });
   } catch (error) {
-    console.error("Google Drive 읽기 오류:", error);
+    console.error("❌ Google Drive 읽기 오류:", error);
     return null;
   }
 }
 
 /**
- * Google Drive 파일 ID 반환 (필요시 사용)
+ * Google Drive 블로그 스타일 파일 ID 반환
  */
 export async function getBlogStyleFileId(): Promise<string | null> {
   try {
-    return await findFileByName("blog_style.txt");
+    const fileId = await findFileByName("blog_style.txt");
+    if (fileId) {
+      console.log(`📄 블로그 스타일 파일 ID: ${fileId}`);
+    }
+    return fileId;
   } catch (error) {
-    console.error("파일 ID 조회 오류:", error);
+    console.error("❌ 파일 ID 조회 오류:", error);
     return null;
   }
 }
