@@ -74,13 +74,13 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
 
     // 페이지별 처리
     const startTime = new Date();
-    let currentPage = 1;
+    let currentPageNum = 1;
     let totalProcessed = 0;
     let totalLiked = 0;
     let hasNextPage = true;
 
-    while (hasNextPage && currentPage <= 5) {
-      console.log(`\n========== 페이지 ${currentPage} 처리 ==========`);
+    while (hasNextPage && currentPageNum <= 10) {
+      console.log(`\n========== 페이지 ${currentPageNum} 처리 ==========`);
 
       // 좋아요 버튼 모두 찾기
       const likeButtonLocators = await page.locator('a.u_likeit_button._face').all();
@@ -100,26 +100,36 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
           const ariaPressed = await buttonLocator.getAttribute('aria-pressed');
           const isAlreadyLiked = ariaPressed === 'true';
 
-          // 제목 추출 - 간단한 방법
+          // 제목 추출 - 더 정교한 방법
           let title = `글 #${i + 1}`;
 
           try {
-            // 좋아요 버튼 주변에서 제목 찾기
-            const titleElement = await buttonLocator.locator('//ancestor::*[contains(@class, "info") or contains(@class, "post") or contains(@class, "item")]//strong').first();
+            // 방법 1: 가장 가까운 article 또는 div[class*="item"] 찾기
+            const itemContainer = await buttonLocator.locator('xpath=ancestor::article | ancestor::div[contains(@class, "item")] | ancestor::div[contains(@class, "post")] | ancestor::li').first();
+
+            // 방법 2: strong 태그 찾기 (제목이 보통 strong 안에)
+            const titleElement = await itemContainer.locator('strong').first();
             const titleText = await titleElement.textContent();
-            if (titleText && titleText.trim() && titleText.trim().length < 100) {
-              title = titleText.trim().substring(0, 60);
+
+            if (titleText && titleText.trim().length > 0 && titleText.trim().length < 150) {
+              title = titleText.trim();
+            } else {
+              // 방법 3: a 태그의 텍스트 사용 (제목 링크)
+              const linkText = await itemContainer.locator('a').first().textContent();
+              if (linkText && linkText.trim().length > 0 && linkText.trim().length < 150) {
+                title = linkText.trim();
+              }
             }
           } catch (e) {
             // 에러 무시, 기본값 사용
           }
 
           totalProcessed++;
-          console.log(`[${currentPage}-${i + 1}] "${title}" - 상태: ${isAlreadyLiked ? '이미좋아요' : '미처리'}`);
+          console.log(`[${currentPageNum}-${i + 1}] "${title}" - 상태: ${isAlreadyLiked ? '✅이미좋아요' : '⭕미처리'}`);
 
           if (isAlreadyLiked) {
             details.push({
-              page: currentPage,
+              page: currentPageNum,
               title: title.trim(),
               liked: false,
               reason: '이미 좋아요됨',
@@ -127,10 +137,10 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
           } else {
             // 좋아요 클릭
             await buttonLocator.click();
-            console.log(`[${currentPage}-${i + 1}] 클릭 완료`);
+            console.log(`[${currentPageNum}-${i + 1}] 클릭 완료`);
 
             // 페이지 안정화 대기
-            await page.waitForTimeout(800);
+            await page.waitForTimeout(600);
 
             // 클릭 후 상태 재확인
             const newAriaPressed = await buttonLocator.getAttribute('aria-pressed');
@@ -138,16 +148,16 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
 
             if (likeSucceeded) {
               totalLiked++;
-              console.log(`[${currentPage}-${i + 1}] ✅ 좋아요 성공`);
+              console.log(`[${currentPageNum}-${i + 1}] ✅ 좋아요 성공`);
               details.push({
-                page: currentPage,
+                page: currentPageNum,
                 title: title.trim(),
                 liked: true,
               });
             } else {
-              console.log(`[${currentPage}-${i + 1}] ❌ 좋아요 미적용`);
+              console.log(`[${currentPageNum}-${i + 1}] ❌ 좋아요 미적용`);
               details.push({
-                page: currentPage,
+                page: currentPageNum,
                 title: title.trim(),
                 liked: false,
                 reason: '클릭 후에도 상태 미변경',
@@ -155,9 +165,9 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
             }
           }
         } catch (err) {
-          console.log(`[${currentPage}-${i + 1}] 오류: ${err}`);
+          console.log(`[${currentPageNum}-${i + 1}] 오류: ${err}`);
           details.push({
-            page: currentPage,
+            page: currentPageNum,
             title: `[오류 발생 #${i + 1}]`,
             liked: false,
             reason: err instanceof Error ? err.message : '처리 실패',
@@ -165,34 +175,62 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
         }
       }
 
-      // 다음 페이지 버튼 찾기
-      console.log(`\n[Page ${currentPage}] 다음 페이지 확인 중...`);
+      // 다음 페이지 찾기 (AngularJS 기반 페이지네이션)
+      console.log(`\n[Page ${currentPageNum}] 다음 페이지 확인 중...`);
 
       try {
-        const nextButton = page.locator('a:has-text("다음")').first();
-        const exists = await nextButton.isVisible().catch(() => false);
+        // 현재 페이지 찾기: aria-current="page" 속성
+        const currentPageLink = page.locator('a.item[aria-current="page"]').first();
+        const currentPageText = await currentPageLink.locator('strong').textContent();
+        console.log(`현재 페이지: ${currentPageText}`);
 
-        if (!exists) {
-          console.log('[종료] "다음" 버튼을 찾을 수 없습니다');
-          hasNextPage = false;
-        } else {
-          const isDisabled = await nextButton.getAttribute('aria-disabled');
-          console.log(`"다음" 버튼 상태: ${isDisabled === 'true' ? '비활성화' : '활성화'}`);
+        // 모든 페이지 링크 찾기
+        const allPageLinks = await page.locator('a.item[aria-label*="페이지"]').all();
+        console.log(`찾은 페이지 링크: ${allPageLinks.length}개`);
 
-          if (isDisabled === 'true') {
-            console.log('[종료] "다음" 버튼이 비활성화되었습니다');
-            hasNextPage = false;
-          } else {
-            // 다음 페이지로 이동
-            await nextButton.click();
-            console.log(`페이지 이동 중...`);
-            await page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {});
-            await page.waitForTimeout(2000);
-            currentPage++;
+        let nextPageFound = false;
+
+        // 현재 페이지보다 번호가 큰 첫 번째 페이지 찾기
+        for (const pageLink of allPageLinks) {
+          const ariaLabel = await pageLink.getAttribute('aria-label');
+          console.log(`페이지 링크: ${ariaLabel}`);
+
+          // "다음" 버튼이나 다음 페이지 확인
+          if (ariaLabel && (ariaLabel.includes('다음') || ariaLabel.includes('Next'))) {
+            const isCurrent = await pageLink.getAttribute('aria-current');
+            if (isCurrent !== 'page') {
+              // 다음 페이지로 이동
+              await pageLink.click();
+              console.log(`[Page ${currentPageNum}] 다음 페이지로 이동...`);
+              await page.waitForTimeout(2000);
+              currentPageNum++;
+              nextPageFound = true;
+              break;
+            }
           }
         }
+
+        if (!nextPageFound) {
+          // "다음" 텍스트가 있는 버튼 찾기
+          const nextBtn = page.locator('a:has-text("다음")').first();
+          const nextBtnVisible = await nextBtn.isVisible().catch(() => false);
+          const nextBtnDisabled = await nextBtn.getAttribute('aria-disabled').catch(() => 'true');
+
+          if (nextBtnVisible && nextBtnDisabled !== 'true') {
+            await nextBtn.click();
+            console.log(`[Page ${currentPageNum}] "다음" 버튼 클릭`);
+            await page.waitForTimeout(2000);
+            currentPageNum++;
+            nextPageFound = true;
+          }
+        }
+
+        if (!nextPageFound) {
+          console.log('[종료] 더 이상 페이지가 없습니다');
+          hasNextPage = false;
+        }
       } catch (err) {
-        console.log(`[Page ${currentPage}] 다음 페이지 버튼 처리 오류: ${err}`);
+        console.log(`[Page ${currentPageNum}] 페이지 이동 오류: ${err}`);
         hasNextPage = false;
       }
     }
@@ -201,7 +239,7 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
 
     return {
       success: true,
-      totalPages: currentPage,
+      totalPages: currentPageNum,
       totalProcessed,
       totalLiked,
       totalFailed: details.filter((d) => !d.liked && d.reason !== '이미 좋아요됨').length,
