@@ -592,17 +592,22 @@ class NaverBlogAutomation {
           return '';
         }
 
-        // iframe 내부에서 날짜 추출
-        // 사용자가 제시한 선택자로 날짜 추출
-        const dateElement = iframeDoc.querySelector(
+        console.log('[evaluate] 날짜 파싱 시작...');
+
+        // 방법 1: 사용자가 제시한 선택자
+        let dateElement = iframeDoc.querySelector(
           '#SE-BC25FC5F-FE4A-47E4-9CD5-18A13F09A130 > div > div > div.blog2_container > span > span.desc > span'
         );
 
         if (dateElement) {
-          return dateElement.textContent?.trim() || '';
+          const text = dateElement.textContent?.trim() || '';
+          if (text) {
+            console.log('[evaluate] 선택자 1에서 발견:', text);
+            return text;
+          }
         }
 
-        // 폴백: 다른 날짜 선택자들 시도 (iframe 내부)
+        // 방법 2: 다른 선택자들 시도
         const alternateSelectors = [
           '.se_publishDate',
           '.gm-ucc-date',
@@ -610,24 +615,57 @@ class NaverBlogAutomation {
           '[datetime]',
           '.se-text-author-date',
           'span.desc > span',
+          '.se_profile span',
+          '[class*="date"] [class*="desc"]',
         ];
 
         for (const selector of alternateSelectors) {
           const el = iframeDoc.querySelector(selector);
           if (el) {
             const dateText = el.getAttribute('datetime') || el.textContent?.trim() || '';
-            if (dateText) return dateText;
+            if (dateText && /\d{4}/.test(dateText)) {
+              console.log('[evaluate] 선택자 대체에서 발견:', dateText);
+              return dateText;
+            }
           }
         }
 
-        // 마지막 방법: 모든 span에서 날짜 패턴 찾기
-        const allSpans = iframeDoc.querySelectorAll('span');
-        for (const span of allSpans) {
-          const text = span.textContent?.trim() || '';
-          if (/\d{4}.*[.\s]+\d{1,2}.*[.\s]+\d{1,2}/.test(text)) {
+        // 방법 3: 모든 span에서 정확한 날짜 패턴 찾기 (우선순위: 가장 작은 텍스트)
+        const allSpans = Array.from(iframeDoc.querySelectorAll('span'));
+
+        // 날짜 패턴 정규식
+        const datePatterns = [
+          /^\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\./,  // "2024. 2. 2."
+          /^\d{4}\.\d{1,2}\.\d{1,2}\./,        // "2024.2.2."
+          /\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\./,   // 중간에 있는 날짜
+        ];
+
+        for (const pattern of datePatterns) {
+          const dateSpan = allSpans.find(span => {
+            const text = span.textContent?.trim() || '';
+            return pattern.test(text) && text.length < 50; // 날짜만 있거나 최소한의 텍스트
+          });
+
+          if (dateSpan) {
+            const text = dateSpan.textContent?.trim() || '';
+            console.log('[evaluate] span 검색에서 발견:', text);
             return text;
           }
         }
+
+        // 방법 4: 프로파일 영역에서 찾기 (보통 "시간 · YYYY.M.D. 시간" 형식)
+        const profileElements = iframeDoc.querySelectorAll('[class*="profile"], [class*="author"], [class*="info"]');
+        for (const el of profileElements) {
+          const text = el.textContent || '';
+          const match = text.match(/\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\./);
+          if (match) {
+            console.log('[evaluate] 프로파일 영역에서 발견:', match[0]);
+            return match[0];
+          }
+        }
+
+        console.log('[evaluate] 날짜를 찾을 수 없습니다. HTML 스니펫 (처음 2000자):');
+        console.log(iframeDoc.body.innerHTML.substring(0, 2000));
 
         return '';
       });
