@@ -17,6 +17,13 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
   const { chromium } = await import('playwright');
 
   let browser = null;
+  const details: Array<{
+    page: number;
+    title: string;
+    liked: boolean;
+    reason?: string;
+  }> = [];
+
   try {
     // 브라우저 시작
     browser = await chromium.launch({
@@ -65,127 +72,142 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
     );
     await page.waitForTimeout(2000);
 
-    // 이웃새글 자동 좋아요 (클라이언트 사이드 실행)
+    // 페이지별 처리
     const startTime = new Date();
-    const results = await page.evaluate(async () => {
-      const details: Array<{
-        page: number;
-        title: string;
-        liked: boolean;
-        reason?: string;
-      }> = [];
+    let currentPage = 1;
+    let totalProcessed = 0;
+    let totalLiked = 0;
+    let hasNextPage = true;
 
-      let currentPage = 1;
-      let hasNextPage = true;
-      let totalProcessed = 0;
-      let totalLiked = 0;
+    while (hasNextPage && currentPage <= 5) {
+      console.log(`\n========== 페이지 ${currentPage} 처리 ==========`);
 
-      while (hasNextPage) {
-        console.log(`페이지 ${currentPage} 처리 중...`);
+      // 좋아요 버튼 모두 찾기
+      const likeButtonLocators = await page.locator('a.u_likeit_button._face').all();
+      console.log(`찾은 좋아요 버튼: ${likeButtonLocators.length}개`);
 
-        // 글 제목과 좋아요 버튼 찾기
-        const items: Array<{ title: string; button: HTMLElement }> = [];
+      if (likeButtonLocators.length === 0) {
+        console.log('[종료] 좋아요 버튼을 찾을 수 없습니다');
+        break;
+      }
 
-        const h3 = Array.from(document.querySelectorAll('h3')).find((h) =>
-          h.textContent?.includes('이웃새글')
-        );
-        if (!h3) {
-          break;
-        }
+      // 각 버튼마다 개별 처리
+      for (let i = 0; i < likeButtonLocators.length; i++) {
+        const buttonLocator = likeButtonLocators[i];
 
-        let container = h3.parentElement;
-        while (container && !((container as HTMLElement).querySelector('[class*="list"]') !== null)) {
-          container = container.parentElement;
-        }
+        try {
+          // 현재 상태 확인
+          const ariaPressed = await buttonLocator.getAttribute('aria-pressed');
+          const isAlreadyLiked = ariaPressed === 'true';
 
-        if (!container) {
-          break;
-        }
+          // 제목 추출 - 간단한 방법
+          let title = `글 #${i + 1}`;
 
-        // 좋아요 버튼과 제목 매칭
-        const likeButtons = Array.from(container.querySelectorAll('a.u_likeit_button._face'));
+          try {
+            // 좋아요 버튼 주변에서 제목 찾기
+            const titleElement = await buttonLocator.locator('//ancestor::*[contains(@class, "info") or contains(@class, "post") or contains(@class, "item")]//strong').first();
+            const titleText = await titleElement.textContent();
+            if (titleText && titleText.trim() && titleText.trim().length < 100) {
+              title = titleText.trim().substring(0, 60);
+            }
+          } catch (e) {
+            // 에러 무시, 기본값 사용
+          }
 
-        likeButtons.forEach((btn, idx) => {
-          const titleElement = (btn as HTMLElement)
-            .closest('[class*="info"]')
-            ?.querySelector('strong');
-          const title = titleElement?.textContent?.trim() || `[제목 없음 #${idx + 1}]`;
-
-          items.push({
-            title,
-            button: btn as HTMLElement,
-          });
-        });
-
-        // 각 글의 좋아요 처리
-        for (const item of items) {
-          const ariaPressed = item.button.getAttribute('aria-pressed');
           totalProcessed++;
+          console.log(`[${currentPage}-${i + 1}] "${title}" - 상태: ${isAlreadyLiked ? '이미좋아요' : '미처리'}`);
 
-          if (ariaPressed === 'true') {
+          if (isAlreadyLiked) {
             details.push({
               page: currentPage,
-              title: item.title,
+              title: title.trim(),
               liked: false,
               reason: '이미 좋아요됨',
             });
           } else {
-            try {
-              item.button.click();
+            // 좋아요 클릭
+            await buttonLocator.click();
+            console.log(`[${currentPage}-${i + 1}] 클릭 완료`);
+
+            // 페이지 안정화 대기
+            await page.waitForTimeout(800);
+
+            // 클릭 후 상태 재확인
+            const newAriaPressed = await buttonLocator.getAttribute('aria-pressed');
+            const likeSucceeded = newAriaPressed === 'true';
+
+            if (likeSucceeded) {
               totalLiked++;
+              console.log(`[${currentPage}-${i + 1}] ✅ 좋아요 성공`);
               details.push({
                 page: currentPage,
-                title: item.title,
+                title: title.trim(),
                 liked: true,
               });
-              await new Promise((r) => setTimeout(r, 300));
-            } catch (err) {
+            } else {
+              console.log(`[${currentPage}-${i + 1}] ❌ 좋아요 미적용`);
               details.push({
                 page: currentPage,
-                title: item.title,
+                title: title.trim(),
                 liked: false,
-                reason: err instanceof Error ? err.message : '클릭 실패',
+                reason: '클릭 후에도 상태 미변경',
               });
             }
           }
-        }
-
-        // 다음 페이지 확인
-        const nextButton = Array.from(document.querySelectorAll('a')).find(
-          (a) => a.textContent?.trim() === '다음'
-        ) as HTMLElement | undefined;
-        const canGoNext =
-          !!nextButton && nextButton.getAttribute('aria-disabled') !== 'true';
-
-        if (canGoNext) {
-          nextButton?.click();
-          await new Promise((r) => setTimeout(r, 2000));
-          currentPage++;
-        } else {
-          hasNextPage = false;
+        } catch (err) {
+          console.log(`[${currentPage}-${i + 1}] 오류: ${err}`);
+          details.push({
+            page: currentPage,
+            title: `[오류 발생 #${i + 1}]`,
+            liked: false,
+            reason: err instanceof Error ? err.message : '처리 실패',
+          });
         }
       }
 
-      return {
-        totalPages: currentPage,
-        totalProcessed,
-        totalLiked,
-        totalFailed: details.filter((d) => !d.liked && d.reason !== '이미 좋아요됨').length,
-        details,
-      };
-    });
+      // 다음 페이지 버튼 찾기
+      console.log(`\n[Page ${currentPage}] 다음 페이지 확인 중...`);
+
+      try {
+        const nextButton = page.locator('a:has-text("다음")').first();
+        const exists = await nextButton.isVisible().catch(() => false);
+
+        if (!exists) {
+          console.log('[종료] "다음" 버튼을 찾을 수 없습니다');
+          hasNextPage = false;
+        } else {
+          const isDisabled = await nextButton.getAttribute('aria-disabled');
+          console.log(`"다음" 버튼 상태: ${isDisabled === 'true' ? '비활성화' : '활성화'}`);
+
+          if (isDisabled === 'true') {
+            console.log('[종료] "다음" 버튼이 비활성화되었습니다');
+            hasNextPage = false;
+          } else {
+            // 다음 페이지로 이동
+            await nextButton.click();
+            console.log(`페이지 이동 중...`);
+            await page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {});
+            await page.waitForTimeout(2000);
+            currentPage++;
+          }
+        }
+      } catch (err) {
+        console.log(`[Page ${currentPage}] 다음 페이지 버튼 처리 오류: ${err}`);
+        hasNextPage = false;
+      }
+    }
 
     const endTime = new Date();
 
     return {
       success: true,
-      totalPages: results.totalPages,
-      totalProcessed: results.totalProcessed,
-      totalLiked: results.totalLiked,
-      totalFailed: results.totalFailed,
+      totalPages: currentPage,
+      totalProcessed,
+      totalLiked,
+      totalFailed: details.filter((d) => !d.liked && d.reason !== '이미 좋아요됨').length,
       startedAt: startTime.toISOString(),
       completedAt: endTime.toISOString(),
-      details: results.details,
+      details,
     };
   } finally {
     if (browser) {
