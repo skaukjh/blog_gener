@@ -19,6 +19,7 @@ export interface BlogPostInfo {
   url: string;
   date: string;
   hasLike: boolean;
+  logNo?: string; // 글 번호
 }
 
 export interface AutoLikeResult {
@@ -518,43 +519,65 @@ class NaverBlogAutomation {
       cutoffDate.setDate(cutoffDate.getDate() - daysLimit);
       console.log(`[Playwright] 날짜 필터: ${cutoffDate.toLocaleDateString('ko-KR')} 이후`);
 
-      // 글 정보 추출 (날짜는 각 글 페이지 방문 시 파싱)
+      // 글 정보 추출 (날짜 포함)
       const posts = await this.page.evaluate(() => {
         const items: BlogPostInfo[] = [];
 
-        // 모든 링크를 검사하여 블로그 글 찾기
-        const allLinks = document.querySelectorAll('a');
-        const postMap = new Map<string, BlogPostInfo>();
+        // 테이블 기반 글 목록 (새 블로그)
+        const postRows = document.querySelectorAll('table tr');
+        console.log(`[evaluate] 테이블 행: ${postRows.length}`);
 
-        console.log(`[evaluate] 전체 링크 개수: ${allLinks.length}`);
+        postRows.forEach((row) => {
+          const titleCell = row.querySelector('td:first-child a, a[class*="title"]');
+          const dateCell = row.querySelector('td:last-child, [class*="date"]');
 
-        allLinks.forEach((link) => {
-          const url = link.href || '';
-          const title = link.textContent?.trim() || '';
+          if (titleCell && dateCell) {
+            const url = titleCell.getAttribute('href') || '';
+            const title = titleCell.textContent?.trim() || '';
+            const date = dateCell.textContent?.trim() || '';
 
-          // 블로그 글 URL 패턴 확인
-          // 패턴 1: /blog.naver.com/blogid/123456789
-          // 패턴 2: /PostView.naver?
-          // 패턴 3: /entry.naver?
-          const isPostUrl = url.match(/\/blog\.naver\.com\/[a-zA-Z0-9_]+\/\d+/) ||
-                           url.match(/\/PostView\.naver\?/) ||
-                           url.match(/\/entry\.naver\?/);
-
-          if (isPostUrl && title && title.length > 0 && !postMap.has(url)) {
-            postMap.set(url, {
-              title,
-              url,
-              date: '',
-              hasLike: false,
-            });
+            if (url && title && /\/blog\.naver\.com|PostView|entry\.naver/.test(url)) {
+              items.push({
+                title,
+                url,
+                date,
+                hasLike: false,
+              });
+            }
           }
         });
 
-        postMap.forEach((item) => {
-          items.push(item);
-        });
+        // 테이블이 없으면 일반 링크 기반 검사
+        if (items.length === 0) {
+          const allLinks = document.querySelectorAll('a');
+          const postMap = new Map<string, BlogPostInfo>();
 
-        console.log(`[evaluate] 발견된 글: ${items.length}개`);
+          console.log(`[evaluate] 일반 링크 검사: ${allLinks.length}개`);
+
+          allLinks.forEach((link) => {
+            const url = link.href || '';
+            const title = link.textContent?.trim() || '';
+
+            const isPostUrl = url.match(/\/blog\.naver\.com\/[a-zA-Z0-9_]+\/\d+/) ||
+                             url.match(/\/PostView\.naver\?/) ||
+                             url.match(/\/entry\.naver\?/);
+
+            if (isPostUrl && title && title.length > 0 && !postMap.has(url)) {
+              postMap.set(url, {
+                title,
+                url,
+                date: '',
+                hasLike: false,
+              });
+            }
+          });
+
+          postMap.forEach((item) => {
+            items.push(item);
+          });
+        }
+
+        console.log(`[evaluate] 발견된 글: ${items.length}개 (날짜 포함)`);
         return items;
       });
 
@@ -672,6 +695,7 @@ class NaverBlogAutomation {
 
       if (!dateString) {
         console.warn('[Playwright] 날짜를 파싱할 수 없습니다');
+        console.warn('[Playwright] 이 글을 처리하지 않습니다 (날짜 미확인)');
         return null;
       }
 
@@ -1064,11 +1088,27 @@ export async function processNeighborAutoLike(
         // 각 글에 좋아요 누르기 (날짜 필터링 포함)
         for (const post of posts) {
           try {
-            // 글의 날짜 확인
-            const postDate = await automation.getPostDate(post.url);
+            let postDate: Date | null = null;
 
+            // 우선 1: 글 목록에서 가져온 날짜 사용
+            if (post.date) {
+              console.log(`[${neighbor.nickname}] 글 목록 날짜: ${post.date}`);
+
+              // 날짜 문자열 파싱
+              const dateMatch = post.date.match(/(\d{4})[.\s]+(\d{1,2})[.\s]+(\d{1,2})/);
+              if (dateMatch) {
+                postDate = new Date(parseInt(dateMatch[1]), parseInt(dateMatch[2]) - 1, parseInt(dateMatch[3]));
+              }
+            }
+
+            // 우선 2: 글 목록에서 날짜를 찾지 못하면 글 페이지에서 파싱
+            if (!postDate) {
+              console.log(`[${neighbor.nickname}] 글 페이지에서 날짜 파싱 시도...`);
+              postDate = await automation.getPostDate(post.url);
+            }
+
+            // 날짜 확인 (필터링)
             if (postDate) {
-              // 날짜 비교 (기준 날짜 이후인지 확인)
               const isWithinDays = postDate >= cutoffDate;
 
               if (!isWithinDays) {
@@ -1082,7 +1122,7 @@ export async function processNeighborAutoLike(
                 `✓ [${neighbor.nickname}] 날짜 확인됨: ${post.title} (${postDate.toLocaleDateString('ko-KR')})`
               );
             } else {
-              console.warn(`⚠️ [${neighbor.nickname}] 날짜 파싱 실패, 처리 스킵: ${post.title}`);
+              console.warn(`⚠️ [${neighbor.nickname}] 날짜를 찾을 수 없어 처리 스킵: ${post.title}`);
               continue;
             }
 

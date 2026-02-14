@@ -45,7 +45,8 @@
       "Bash(head:*)",
       "Bash(netstat:*)",
       "Bash(npx tsx:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "mcp__playwright__browser_handle_dialog"
     ]
   }
 }
