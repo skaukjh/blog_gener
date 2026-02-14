@@ -36,6 +36,7 @@ AI Blog Post Generator is a Next.js application that automatically generates blo
   2. IMAGE-BASED DESCRIPTIONS - Only describe visible elements
   3. TECHNICAL REQUIREMENTS - Marker placement, keywords
   4. QUALITY & ENGAGEMENT
+- `comment-generator.ts`: **NEW (Phase 18)** Generates natural 2-3 sentence neighbor blog comments with ~~요 endings
 - `prompts.ts`: System prompts (all in English for cost optimization, includes 35+ sensory vocabulary terms)
 
 **Blog Style Analysis & Caching** (`lib/blog/scraper.ts`, `lib/utils/cache.ts`, `lib/utils/blog-style-storage.ts`)
@@ -118,6 +119,53 @@ npm run lint
 
 ## Key Implementation Details
 
+### Neighbor Blog Automation (Phase 17-18 - NEW)
+
+**Architecture**: Playwright-based browser automation for visiting neighbor blog posts and posting comments with automatic likes
+
+**Key Features**:
+- **Like Status Filtering** (Phase 17): Only processes posts without existing likes
+  - Assumes liked posts = already commented
+  - Reduces unnecessary API calls and processing
+  - Extracts `hasLike` state from UI: `button[aria-pressed="true"]` or `button.u_likeit_on`
+
+- **Submit Button Selection** (Phase 17): 3-strategy approach to select correct button
+  - Strategy 1: Find "등록" text (exact match)
+  - Strategy 2: Select last non-sticker button in `.u_cbox_upload`
+  - Strategy 3: CSS selector `button.u_cbox_btn_upload:not(.sticker)`
+  - Prevents accidentally clicking sticker button instead of submit
+
+- **Comment Generation** (Phase 18): Natural 2-3 sentence comments
+  - Length: 80-150 Korean characters (expanded from 1-2 sentences)
+  - Maintains ~~요 endings (100%)
+  - No AI flavor, warm tone
+  - Examples: "정말 좋은 정보네요~ 저도 도움이 많이 되었어요. 계속 이런 좋은 글 부탁드려요!"
+
+- **Wait Time Randomization** (Phase 18): 300-400 seconds between posts
+  - Replaces fixed intervals
+  - Avoids spam detection patterns
+  - Formula: `Math.random() * 100000 + 300000` milliseconds
+
+**Processing Flow**:
+```
+1. Navigate to neighbor blog list
+2. Extract post list with like status (hasLike)
+3. For each post:
+   a. Check if hasLike = true → Skip (comment already posted)
+   b. Extract post content
+   c. Generate 2-3 sentence comment (GPT-4o)
+   d. Submit comment (fixed button selection)
+   e. Click like button
+   f. Wait 300-400 seconds (randomized)
+```
+
+**Important Files**:
+- `lib/naver/blog-automation.ts`: Main automation class with Playwright control
+  - `submitComment()`: Step-by-step iframe navigation, container detection, input field handling
+  - `autoCommentAndLikeNeighborPosts()`: Main orchestration loop
+- `lib/openai/comment-generator.ts`: Comment generation with blog style matching
+- `app/api/neighbor/comment-and-like/route.ts`: API endpoint (local development only)
+
 ### Sentence Ending Pattern (Phase 11 - CRITICAL)
 - **Extracted automatically** when user analyzes their blog samples
 - Patterns: `~~요`, `~~다`, `~~해요`, `~~하다`, etc.
@@ -181,12 +229,18 @@ app/
 ├── (protected)/
 │   ├── layout.tsx             # Auth check, Navigation wrapper
 │   ├── generate/              # Main blog generation interface
-│   └── format/                # Blog style management
+│   ├── format/                # Blog style management
+│   └── neighbor/              # NEW: Neighbor blog automation
+│       ├── page.tsx           # Like neighbor posts home
+│       └── comment-and-like/  # NEW: Like + comment automation
 ├── api/
 │   ├── auth/                  # Authentication endpoints
 │   ├── blog/                  # Blog crawling and style analysis
 │   ├── assistant/             # OpenAI Assistant management
-│   └── generate/              # Image analysis and content generation
+│   ├── generate/              # Image analysis and content generation
+│   └── neighbor/              # NEW: Neighbor automation APIs
+│       ├── like-home/         # Like neighbor posts API
+│       └── comment-and-like/  # NEW: Comment + like API (Phase 17)
 ├── layout.tsx                 # Root layout
 ├── page.tsx                   # Redirect to /generate
 └── globals.css                # TailwindCSS
@@ -206,8 +260,11 @@ lib/
 │   ├── blog-analyzer.ts
 │   ├── image-analyzer.ts
 │   ├── content-generator.ts
+│   ├── comment-generator.ts   # NEW (Phase 18): Neighbor comment generation
 │   └── prompts.ts
 ├── blog/scraper.ts            # Cheerio-based crawling
+├── naver/
+│   └── blog-automation.ts      # NEW (Phase 17): Playwright neighbor automation
 └── utils/
     ├── validation.ts
     ├── cache.ts
@@ -233,6 +290,10 @@ middleware.ts                  # Next.js request middleware
 | Analyze blog style from samples | `lib/openai/blog-analyzer.ts` line 74-166 | Uses `analyzeStyleCompact()` with gpt-4o |
 | Update Assistant instructions | `app/api/blog/analyze-style/route.ts` line 72+ | Syncs style to OpenAI Assistant |
 | Add new API endpoint | Create in `app/api/...` | Must add to `protectedPaths` if protected |
+| Adjust comment length | `lib/openai/comment-generator.ts` line 35-36 | Change sentence count and character range |
+| Change wait time between posts | `lib/naver/blog-automation.ts` line 1852 | Modify `Math.random() * 100000 + 300000` formula |
+| Fix button selection logic | `lib/naver/blog-automation.ts` line 1558+ | Update 3-strategy approach in `submitSuccess` evaluate |
+| Handle iframe DOM access | `lib/naver/blog-automation.ts` line 1321+ | Always use `iframe.contentDocument` for Naver blog structure |
 
 ## Type System
 
