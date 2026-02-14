@@ -48,18 +48,15 @@ export function generateClientImageGuides(
 
     const guide: ImageGuide = {
       index: imageIndex,
-      marker: marker.marker,
       lineNumber,
       paragraphNumber,
+      marker: marker.marker,
       suggestedCaption,
       placement,
     };
 
     guides.push(guide);
   }
-
-  // 인덱스 순서로 정렬
-  guides.sort((a, b) => a.index - b.index);
 
   return guides;
 }

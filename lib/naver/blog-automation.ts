@@ -36,6 +36,22 @@ export interface AutoLikeResult {
   completedAt: string;
 }
 
+export interface NeighborPostLikeResult {
+  success: boolean;
+  totalPages: number;
+  totalProcessed: number;
+  totalLiked: number;
+  totalFailed: number;
+  startedAt: string;
+  completedAt: string;
+  details: Array<{
+    page: number;
+    title: string;
+    liked: boolean;
+    reason?: string; // 실패 이유 또는 이미 눌러짐 등
+  }>;
+}
+
 class NaverBlogAutomation {
   private browser: any = null;
   private page: any = null;
@@ -1016,6 +1032,218 @@ class NaverBlogAutomation {
     } catch (error) {
       console.error(`[Playwright] 좋아요 처리 오류 (${postUrl}):`, error);
       return false;
+    }
+  }
+
+  /**
+   * 네이버 블로그 홈의 이웃새글에 일괄 좋아요 누르기 (페이지 순회 포함)
+   * - 현재 페이지의 이웃새글 모두 처리
+   * - 다음 페이지 있으면 자동 이동
+   * - 글 제목과 성공/실패 이유 기록
+   */
+  async autoLikeNeighborPosts(): Promise<NeighborPostLikeResult> {
+    const startTime = new Date();
+    const result: NeighborPostLikeResult = {
+      success: true,
+      totalPages: 0,
+      totalProcessed: 0,
+      totalLiked: 0,
+      totalFailed: 0,
+      startedAt: startTime.toISOString(),
+      completedAt: new Date().toISOString(),
+      details: [],
+    };
+
+    try {
+      console.log('[Playwright] 이웃새글 자동 좋아요 시작 (페이지 순회)...');
+
+      if (!this.isLoggedIn) {
+        throw new Error('로그인되지 않았습니다');
+      }
+
+      let currentPage = 1;
+      let hasNextPage = true;
+
+      while (hasNextPage) {
+        console.log(`\n[Playwright] ===== 페이지 ${currentPage} 처리 중 =====`);
+        result.totalPages = currentPage;
+
+        // 이웃새글 섹션의 좋아요 버튼과 글 정보 찾기
+        const pageResults = await this.page.evaluate(() => {
+          const items: Array<{ title: string; ariaPressed: string | null; element: any }> = [];
+
+          // 이웃새글 섹션 찾기
+          const h3 = Array.from(document.querySelectorAll('h3')).find((h) =>
+            h.textContent?.includes('이웃새글')
+          );
+          if (!h3) {
+            return { items: [], hasNextButton: false };
+          }
+
+          let container = h3.parentElement;
+          while (container && !(container as HTMLElement).querySelector('[class*="list"]')) {
+            container = container.parentElement;
+          }
+
+          if (!container) {
+            return { items: [], hasNextButton: false };
+          }
+
+          // 각 글과 좋아요 버튼 찾기
+          const likeButtons = (container as HTMLElement).querySelectorAll('a.u_likeit_button._face');
+
+          likeButtons.forEach((btn, idx) => {
+            // 글 제목 찾기 (버튼의 상위 요소에서)
+            let titleElement = (btn as HTMLElement).closest('[class*="info"]')?.querySelector('strong');
+            const title = titleElement?.textContent?.trim() || `[제목 없음 #${idx + 1}]`;
+
+            items.push({
+              title,
+              ariaPressed: btn.getAttribute('aria-pressed'),
+              element: btn, // 나중에 click() 호출 용도
+            });
+          });
+
+          // "다음" 버튼 활성 상태 확인
+          const nextButton = Array.from(document.querySelectorAll('a')).find((a) =>
+            a.textContent?.trim() === '다음'
+          ) as HTMLElement | undefined;
+          const hasNextButton =
+            !!nextButton &&
+            nextButton.getAttribute('aria-disabled') !== 'true' &&
+            !nextButton.classList.contains('disabled');
+
+          return { items, hasNextButton };
+        });
+
+        const pageItems = pageResults.items;
+        console.log(`[Playwright] 페이지 ${currentPage}: ${pageItems.length}개 글 발견`);
+
+        // 각 글의 좋아요 처리
+        for (let i = 0; i < pageItems.length; i++) {
+          const item = pageItems[i];
+          const displayIndex = `[${currentPage}-${i + 1}]`;
+
+          try {
+            const likeButtons = await this.page.locator('a.u_likeit_button._face').all();
+            if (i >= likeButtons.length) {
+              console.warn(`${displayIndex} 버튼 인덱스 초과`);
+              continue;
+            }
+
+            const btn = likeButtons[i];
+            const ariaPressed = await btn.getAttribute('aria-pressed');
+
+            result.totalProcessed++;
+
+            if (ariaPressed === 'true') {
+              result.details.push({
+                page: currentPage,
+                title: item.title,
+                liked: false,
+                reason: '이미 좋아요됨',
+              });
+              console.log(`${displayIndex} ⏭️  ${item.title} (이미 눌러짐)`);
+            } else {
+              try {
+                await btn.click();
+                result.totalLiked++;
+                result.details.push({
+                  page: currentPage,
+                  title: item.title,
+                  liked: true,
+                });
+                console.log(`${displayIndex} ✅ ${item.title}`);
+
+                // 서버 응답 대기
+                await this.page.waitForTimeout(300);
+              } catch (clickErr) {
+                result.totalFailed++;
+                const errorMsg = clickErr instanceof Error ? clickErr.message : '알 수 없는 오류';
+                result.details.push({
+                  page: currentPage,
+                  title: item.title,
+                  liked: false,
+                  reason: errorMsg,
+                });
+                console.warn(`${displayIndex} ❌ ${item.title} (실패: ${errorMsg})`);
+              }
+            }
+          } catch (err) {
+            result.totalFailed++;
+            result.totalProcessed++;
+            const errorMsg = err instanceof Error ? err.message : '알 수 없는 오류';
+            result.details.push({
+              page: currentPage,
+              title: item.title,
+              liked: false,
+              reason: errorMsg,
+            });
+            console.error(`${displayIndex} ❌ 오류: ${errorMsg}`);
+          }
+        }
+
+        // 다음 페이지 이동
+        if (pageResults.hasNextButton) {
+          console.log(`[Playwright] 다음 페이지로 이동 중...`);
+
+          try {
+            // "다음" 버튼 클릭
+            const nextButton = await this.page.locator('a:has-text("다음")').first();
+            await nextButton.click();
+
+            // 페이지 로드 대기
+            await this.page.waitForTimeout(2000);
+            currentPage++;
+          } catch (err) {
+            console.warn('[Playwright] 다음 페이지 이동 실패:', err);
+            hasNextPage = false;
+          }
+        } else {
+          console.log('[Playwright] 다음 페이지가 없습니다. 종료합니다.');
+          hasNextPage = false;
+        }
+      }
+
+      result.completedAt = new Date().toISOString();
+      result.success = true;
+
+      // 최종 결과 출력
+      console.log(`\n[Playwright] ===== 최종 결과 =====`);
+      console.log(`총 페이지: ${result.totalPages}개`);
+      console.log(`총 처리: ${result.totalProcessed}개`);
+      console.log(`✅ 좋아요 누른 글: ${result.totalLiked}개`);
+      console.log(`❌ 좋아요 못 누른 글: ${result.totalFailed}개`);
+      console.log(`⏭️  이미 좋아요된 글: ${result.totalProcessed - result.totalLiked - result.totalFailed}개`);
+
+      // 좋아요 누른 글 목록
+      if (result.totalLiked > 0) {
+        console.log(`\n[좋아요 누른 글]`);
+        result.details
+          .filter((d) => d.liked)
+          .forEach((d) => {
+            console.log(`  - [페이지 ${d.page}] ${d.title}`);
+          });
+      }
+
+      // 좋아요 못 누른 글 목록
+      const failedDetails = result.details.filter((d) => !d.liked);
+      if (failedDetails.length > 0) {
+        console.log(`\n[좋아요 못 누른 글]`);
+        failedDetails.forEach((d) => {
+          console.log(`  - [페이지 ${d.page}] ${d.title}`);
+          if (d.reason) {
+            console.log(`    이유: ${d.reason}`);
+          }
+        });
+      }
+
+      return result;
+    } catch (error) {
+      console.error('[Playwright] 이웃새글 좋아요 오류:', error);
+      result.success = false;
+      result.completedAt = new Date().toISOString();
+      return result;
     }
   }
 
