@@ -513,7 +513,12 @@ class NaverBlogAutomation {
       // 디버그: 페이지 구조 분석
       await this.debugBlogPageStructure();
 
-      // 글 정보 추출
+      // 기준 날짜 계산 (지난 N일 이내)
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysLimit);
+      console.log(`[Playwright] 날짜 필터: ${cutoffDate.toLocaleDateString('ko-KR')} 이후`);
+
+      // 글 정보 추출 (날짜는 각 글 페이지 방문 시 파싱)
       const posts = await this.page.evaluate(() => {
         const items: BlogPostInfo[] = [];
 
@@ -558,6 +563,103 @@ class NaverBlogAutomation {
     } catch (error) {
       console.error('[Playwright] 글 목록 조회 오류:', error);
       return [];
+    }
+  }
+
+  /**
+   * 글의 게시 날짜 확인
+   */
+  async getPostDate(postUrl: string): Promise<Date | null> {
+    try {
+      console.log(`[Playwright] 글 날짜 확인 중: ${postUrl}`);
+
+      await this.page.goto(postUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 20000,
+      });
+
+      // 페이지 로드 대기
+      await this.page.waitForTimeout(1000);
+
+      // 날짜 파싱
+      const dateString = await this.page.evaluate(() => {
+        // 사용자가 제시한 선택자로 날짜 추출
+        const dateElement = document.querySelector(
+          '#SE-BC25FC5F-FE4A-47E4-9CD5-18A13F09A130 > div > div > div.blog2_container > span > span.desc > span'
+        );
+
+        if (dateElement) {
+          return dateElement.textContent?.trim() || '';
+        }
+
+        // 폴백: 다른 날짜 선택자들 시도
+        const alternateSelectors = [
+          '.se_publishDate',
+          '.gm-ucc-date',
+          '[data-date]',
+          '[datetime]',
+          '.se-text-author-date',
+          'span.desc > span',
+        ];
+
+        for (const selector of alternateSelectors) {
+          const el = document.querySelector(selector);
+          if (el) {
+            const dateText = el.getAttribute('datetime') || el.textContent?.trim() || '';
+            if (dateText) return dateText;
+          }
+        }
+
+        return '';
+      });
+
+      if (!dateString) {
+        console.warn('[Playwright] 날짜를 파싱할 수 없습니다');
+        return null;
+      }
+
+      console.log(`[Playwright] 파싱된 날짜 문자열: ${dateString}`);
+
+      // 날짜 문자열 파싱 (예: "2024.2.14.", "2024. 2. 14.", "오늘", "어제" 등)
+      let date: Date | null = null;
+
+      // 패턴 1: "YYYY.M.D." 형식
+      const dotMatch = dateString.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})/);
+      if (dotMatch) {
+        date = new Date(parseInt(dotMatch[1]), parseInt(dotMatch[2]) - 1, parseInt(dotMatch[3]));
+      }
+      // 패턴 2: "YYYY-MM-DD" 형식
+      else if (dateString.match(/\d{4}-\d{2}-\d{2}/)) {
+        date = new Date(dateString.split('T')[0]);
+      }
+      // 패턴 3: "오늘" (today)
+      else if (dateString.includes('오늘')) {
+        date = new Date();
+      }
+      // 패턴 4: "어제" (yesterday)
+      else if (dateString.includes('어제')) {
+        date = new Date();
+        date.setDate(date.getDate() - 1);
+      }
+      // 패턴 5: "N일 전" 형식
+      else {
+        const daysAgoMatch = dateString.match(/(\d+)\s*일\s*전/);
+        if (daysAgoMatch) {
+          date = new Date();
+          date.setDate(date.getDate() - parseInt(daysAgoMatch[1]));
+        }
+      }
+
+      if (date) {
+        console.log(`[Playwright] 파싱된 날짜: ${date.toLocaleDateString('ko-KR')}`);
+        return date;
+      }
+
+      console.warn('[Playwright] 날짜 형식을 인식할 수 없습니다:', dateString);
+      return null;
+    } catch (error) {
+      console.error('[Playwright] 날짜 확인 오류:', error);
+      return null;
     }
   }
 
@@ -642,82 +744,103 @@ class NaverBlogAutomation {
         console.log(`[evaluate] 좋아요 버튼 검색 (logNo: ${logNoParam})...`);
 
         let likeButton: HTMLElement | null = null;
+        let debugInfo = {
+          strategies: [] as string[],
+          ariaPressed: '',
+          classList: [] as string[],
+        };
 
-        // 전략 1: logNo를 사용한 정확한 선택자
+        // 전략 1: 사용자가 제시한 정확한 선택자 (logNo 기반)
         if (logNoParam) {
-          const selector = `#area_sympathy${logNoParam}`;
-          const sympathyArea = document.querySelector(selector);
-          console.log(`[evaluate] ${selector} 검색: ${sympathyArea ? '찾음' : '미발견'}`);
-
-          if (sympathyArea) {
-            // #area_sympathy{logNo} > div > div > div > a > span.u_likeit_icons > span
-            const likeLink = sympathyArea.querySelector('div > div > div > a');
-            if (likeLink) {
-              likeButton = likeLink as HTMLElement;
-              console.log(`[evaluate] 정확한 선택자로 좋아요 버튼 발견`);
-            }
+          const selector = `#area_sympathy${logNoParam} > div > div > div > a`;
+          console.log(`[evaluate] 선택자 1: ${selector}`);
+          const element = document.querySelector(selector);
+          if (element) {
+            likeButton = element as HTMLElement;
+            debugInfo.strategies.push(`정확한 선택자 발견: ${selector}`);
+            console.log(`[evaluate] ✓ 정확한 선택자로 좋아요 버튼 발견`);
           }
         }
 
-        // 전략 2: #printPost1 내의 좋아요 버튼 찾기
+        // 전략 2: #area_sympathy{logNo} 범위 내에서 a 태그 찾기
+        if (!likeButton && logNoParam) {
+          const selector = `#area_sympathy${logNoParam} a`;
+          console.log(`[evaluate] 선택자 2: ${selector}`);
+          const sympathyArea = document.querySelector(selector);
+          if (sympathyArea) {
+            likeButton = sympathyArea as HTMLElement;
+            debugInfo.strategies.push(`area_sympathy 범위 내 a 태그`);
+            console.log(`[evaluate] ✓ #area_sympathy 범위 내 a 태그 발견`);
+          }
+        }
+
+        // 전략 3: #printPost1 내의 좋아요 버튼 찾기
         if (!likeButton) {
-          console.log('[evaluate] #printPost1 내 좋아요 버튼 검색...');
+          console.log('[evaluate] 선택자 3: #printPost1 내 좋아요 검색');
           const printPost = document.querySelector('#printPost1');
           if (printPost) {
-            const likeArea = printPost.querySelector('td.bcc');
-            if (likeArea) {
-              // span.u_likeit_icons 검색
-              const likeIcon = likeArea.querySelector('span.u_likeit_icons');
-              if (likeIcon && likeIcon.parentElement) {
-                likeButton = likeIcon.parentElement as HTMLElement;
-                console.log('[evaluate] #printPost1 > td.bcc에서 좋아요 버튼 발견');
+            // 여러 선택자 시도
+            const selectors = [
+              'td.bcc a',
+              'span.u_likeit_icons',
+              'a[aria-label*="좋아요"]',
+              'a[class*="like"]',
+            ];
+
+            for (const sel of selectors) {
+              const el = printPost.querySelector(sel);
+              if (el) {
+                likeButton = el as HTMLElement;
+                debugInfo.strategies.push(`#printPost1 내 ${sel}`);
+                console.log(`[evaluate] ✓ #printPost1 내 ${sel} 발견`);
+                break;
               }
             }
           }
         }
 
-        // 전략 3: span.u_likeit_icons 직접 검색
+        // 전략 4: "좋아요" 텍스트 검색 (모든 a 태그)
         if (!likeButton) {
-          console.log('[evaluate] span.u_likeit_icons 직접 검색...');
-          const allLikeSpans = document.querySelectorAll('span.u_likeit_icons');
-          console.log(`[evaluate] span.u_likeit_icons 개수: ${allLikeSpans.length}`);
-          if (allLikeSpans.length > 0) {
-            const firstLikeSpan = allLikeSpans[0];
-            if (firstLikeSpan.parentElement) {
-              likeButton = firstLikeSpan.parentElement as HTMLElement;
-              console.log('[evaluate] span.u_likeit_icons의 부모 요소 사용');
-            }
-          }
-        }
-
-        // 전략 4: "좋아요" 텍스트 검색 (폴백)
-        if (!likeButton) {
-          console.log('[evaluate] "좋아요" 텍스트 검색 (폴백)...');
-          const allElements = document.querySelectorAll('*');
-          for (const el of allElements) {
-            const htmlEl = el as HTMLElement;
-            const text = htmlEl.textContent?.trim() || '';
-            if (text === '좋아요' && (htmlEl.tagName === 'A' || htmlEl.tagName === 'SPAN')) {
-              likeButton = htmlEl.tagName === 'A' ? htmlEl : htmlEl.parentElement;
-              console.log('[evaluate] "좋아요" 텍스트로 버튼 발견');
+          console.log('[evaluate] 선택자 4: "좋아요" 텍스트 검색');
+          const allLinks = document.querySelectorAll('a');
+          for (const link of allLinks) {
+            const text = link.textContent?.trim() || '';
+            const ariaLabel = link.getAttribute('aria-label') || '';
+            if (text.includes('좋아요') || ariaLabel.includes('좋아요')) {
+              likeButton = link;
+              debugInfo.strategies.push(`"좋아요" 텍스트로 검색`);
+              console.log(`[evaluate] ✓ "좋아요" 텍스트로 버튼 발견`);
               break;
             }
           }
         }
 
         if (!likeButton) {
-          return { found: false, isLiked: false };
+          console.log('[evaluate] ✗ 좋아요 버튼을 찾을 수 없습니다');
+          return { found: false, isLiked: false, debug: debugInfo };
         }
 
-        // 좋아요 상태 확인
-        const isLiked = likeButton.classList.contains('on') ||
-                       likeButton.getAttribute('aria-pressed') === 'true' ||
-                       likeButton.classList.contains('active') ||
-                       likeButton.classList.contains('is_like');
+        // 좋아요 상태 확인 (aria-pressed 속성 우선)
+        const ariaPressedValue = likeButton.getAttribute('aria-pressed');
+        debugInfo.ariaPressed = ariaPressedValue || '없음';
+        debugInfo.classList = Array.from(likeButton.classList);
 
-        console.log(`[evaluate] 좋아요 버튼 발견, 상태: ${isLiked ? '눌림' : '안 눌림'}`);
+        console.log(`[evaluate] aria-pressed: ${ariaPressedValue}`);
+        console.log(`[evaluate] class: ${likeButton.className}`);
 
-        return { found: true, isLiked };
+        // aria-pressed 속성 확인 (문자열 'true' 확인)
+        const isLikedByAriaPressed = ariaPressedValue === 'true';
+
+        // 클래스로도 확인 (폴백)
+        const isLikedByClass = likeButton.classList.contains('on') ||
+                               likeButton.classList.contains('active') ||
+                               likeButton.classList.contains('is_like');
+
+        const isLiked = isLikedByAriaPressed || isLikedByClass;
+
+        console.log(`[evaluate] 좋아요 상태: ${isLiked ? '눌림 (Y)' : '안 눌림 (N)'}`);
+
+        return { found: true, isLiked, debug: debugInfo };
       }, logNo);
 
       if (!likeInfo.found) {
@@ -731,56 +854,87 @@ class NaverBlogAutomation {
 
         // 좋아요 버튼 클릭 (정확한 선택자 사용)
         const clickSuccess = await this.page.evaluate((logNoParam: string | null) => {
+          console.log('[evaluate] 좋아요 버튼 클릭 시작...');
           let likeElement: HTMLElement | null = null;
 
-          // 전략 1: logNo를 사용한 정확한 선택자
+          // 전략 1: 사용자가 제시한 정확한 선택자
           if (logNoParam) {
-            const selector = `#area_sympathy${logNoParam}`;
-            const sympathyArea = document.querySelector(selector);
-            if (sympathyArea) {
-              const likeLink = sympathyArea.querySelector('div > div > div > a');
-              if (likeLink) {
-                likeElement = likeLink as HTMLElement;
-                console.log(`[evaluate] 정확한 선택자로 클릭 버튼 발견`);
-              }
+            const selector = `#area_sympathy${logNoParam} > div > div > div > a`;
+            console.log(`[evaluate] 선택자 1: ${selector}`);
+            const element = document.querySelector(selector);
+            if (element) {
+              likeElement = element as HTMLElement;
+              console.log(`[evaluate] ✓ 정확한 선택자로 클릭 버튼 발견`);
             }
           }
 
-          // 전략 2: #printPost1 내의 좋아요 버튼
+          // 전략 2: #area_sympathy{logNo} 범위 내에서 a 태그 찾기
+          if (!likeElement && logNoParam) {
+            const selector = `#area_sympathy${logNoParam} a`;
+            console.log(`[evaluate] 선택자 2: ${selector}`);
+            const element = document.querySelector(selector);
+            if (element) {
+              likeElement = element as HTMLElement;
+              console.log(`[evaluate] ✓ #area_sympathy 범위 내 a 태그로 클릭 버튼 발견`);
+            }
+          }
+
+          // 전략 3: #printPost1 내의 좋아요 버튼
           if (!likeElement) {
+            console.log('[evaluate] 선택자 3: #printPost1 내 좋아요 검색');
             const printPost = document.querySelector('#printPost1');
             if (printPost) {
-              const likeArea = printPost.querySelector('td.bcc');
-              if (likeArea) {
-                const likeIcon = likeArea.querySelector('span.u_likeit_icons');
-                if (likeIcon && likeIcon.parentElement) {
-                  likeElement = likeIcon.parentElement as HTMLElement;
-                  console.log('[evaluate] #printPost1에서 클릭 버튼 발견');
+              const selectors = [
+                'td.bcc a',
+                'span.u_likeit_icons',
+                'a[aria-label*="좋아요"]',
+              ];
+
+              for (const sel of selectors) {
+                const el = printPost.querySelector(sel);
+                if (el) {
+                  likeElement = el as HTMLElement;
+                  console.log(`[evaluate] ✓ #printPost1 내 ${sel}로 클릭 버튼 발견`);
+                  break;
                 }
               }
             }
           }
 
-          // 전략 3: span.u_likeit_icons 직접 사용
+          // 전략 4: "좋아요" 텍스트로 검색
           if (!likeElement) {
-            const likeSpan = document.querySelector('span.u_likeit_icons');
-            if (likeSpan && likeSpan.parentElement) {
-              likeElement = likeSpan.parentElement as HTMLElement;
-              console.log('[evaluate] span.u_likeit_icons로 클릭 버튼 발견');
+            console.log('[evaluate] 선택자 4: "좋아요" 텍스트 검색');
+            const allLinks = document.querySelectorAll('a');
+            for (const link of allLinks) {
+              const text = link.textContent?.trim() || '';
+              const ariaLabel = link.getAttribute('aria-label') || '';
+              if (text.includes('좋아요') || ariaLabel.includes('좋아요')) {
+                likeElement = link;
+                console.log(`[evaluate] ✓ "좋아요" 텍스트로 클릭 버튼 발견`);
+                break;
+              }
             }
           }
 
           if (!likeElement) {
-            console.log('[evaluate] 좋아요 버튼을 찾지 못함');
+            console.log('[evaluate] ✗ 클릭할 좋아요 버튼을 찾을 수 없음');
             return false;
           }
 
           try {
-            likeElement.click();
-            console.log('[evaluate] 좋아요 클릭 완료');
+            // 스크롤하여 버튼이 보이도록 함
+            likeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            console.log('[evaluate] 버튼 스크롤 완료');
+
+            // 약간의 대기
+            setTimeout(() => {}, 500);
+
+            // 클릭 실행
+            likeElement!.click();
+            console.log('[evaluate] ✓ 좋아요 클릭 완료');
             return true;
           } catch (e) {
-            console.log('[evaluate] 클릭 실패:', (e as Error).message);
+            console.log('[evaluate] ✗ 클릭 실패:', (e as Error).message);
             return false;
           }
         }, logNo);
@@ -865,6 +1019,7 @@ export async function processNeighborAutoLike(
     console.log(`[Process] ${neighborsToProcess.length}명의 이웃 처리 시작...`);
 
     for (const neighbor of neighborsToProcess) {
+      let postsProcessed = 0;
       let postsLiked = 0;
 
       try {
@@ -873,16 +1028,47 @@ export async function processNeighborAutoLike(
         // 최근 글 목록 조회
         const posts = await automation.getRecentPosts(neighbor.blogUrl, daysLimit);
 
-        // 각 글에 좋아요 누르기
+        // 기준 날짜 계산
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - daysLimit);
+        console.log(`[Process] 날짜 필터: ${cutoffDate.toLocaleDateString('ko-KR')} 이후만 처리`);
+
+        // 각 글에 좋아요 누르기 (날짜 필터링 포함)
         for (const post of posts) {
           try {
+            // 글의 날짜 확인
+            const postDate = await automation.getPostDate(post.url);
+
+            if (postDate) {
+              // 날짜 비교 (기준 날짜 이후인지 확인)
+              const isWithinDays = postDate >= cutoffDate;
+
+              if (!isWithinDays) {
+                console.log(
+                  `⏭️ [${neighbor.nickname}] 스킵 (과거 글): ${post.title} (${postDate.toLocaleDateString('ko-KR')})`
+                );
+                continue;
+              }
+
+              console.log(
+                `✓ [${neighbor.nickname}] 날짜 확인됨: ${post.title} (${postDate.toLocaleDateString('ko-KR')})`
+              );
+            } else {
+              console.warn(`⚠️ [${neighbor.nickname}] 날짜 파싱 실패, 처리 스킵: ${post.title}`);
+              continue;
+            }
+
+            // 좋아요 누르기
             const liked = await automation.toggleLike(post.url);
+            postsProcessed++;
             result.totalProcessed++;
 
             if (liked) {
               postsLiked++;
               result.totalLiked++;
-              console.log(`✅ [${neighbor.nickname}] 좋아요: ${post.title}`);
+              console.log(`✅ [${neighbor.nickname}] 좋아요 완료: ${post.title}`);
+            } else {
+              console.log(`ℹ️ [${neighbor.nickname}] 이미 좋아요됨 또는 실패: ${post.title}`);
             }
 
             // 너무 빠른 요청 방지 (1~2초 대기)
@@ -890,15 +1076,19 @@ export async function processNeighborAutoLike(
           } catch (error) {
             const errorMsg = `글 처리 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`;
             console.error(errorMsg);
-            result.errors.push(`${neighbor.nickname} - ${errorMsg}`);
+            result.errors.push(`${neighbor.nickname} - ${post.title}: ${errorMsg}`);
           }
         }
 
         result.neighborStats.push({
           nickname: neighbor.nickname,
-          postsProcessed: posts.length,
+          postsProcessed,
           postsLiked,
         });
+
+        console.log(
+          `[Process] ${neighbor.nickname} 완료: ${postsProcessed}개 처리, ${postsLiked}개 좋아요`
+        );
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
         console.error(`[Process] ${neighbor.nickname} 처리 오류: ${errorMsg}`);
