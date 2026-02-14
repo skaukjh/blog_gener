@@ -1847,9 +1847,9 @@ export class NaverBlogAutomation {
               `✅ [${processedCount}/${maxPosts}] 완료 (댓글: ${commentSuccess ? '✓' : '✗'}, 좋아요: ${likeSuccess ? '✓' : '✗'})`
             );
 
-            // 다음 글 처리 전 3~4분 대기 (스팸 방지)
+            // 다음 글 처리 전 300~400초 랜덤 대기 (스팸 방지)
             if (processedCount < maxPosts) {
-              const waitTime = minInterval * 60 * 1000 + Math.random() * 60000;
+              const waitTime = Math.random() * 100000 + 300000; // 300~400초 사이 랜덤
               console.log(`⏳ ${Math.round(waitTime / 1000)}초 대기 중...`);
               await this.page.waitForTimeout(waitTime);
             }

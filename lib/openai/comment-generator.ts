@@ -32,9 +32,10 @@ CRITICAL PRIORITY 1 - SENTENCE ENDINGS (종결어미):
 
 CRITICAL PRIORITY 2 - NATURAL TONE:
 - Write like a real person (친근하고 따뜻한 톤)
-- Short and concise (1-2 sentences, 30-80 Korean characters)
+- Medium length (2-3 sentences, 80-150 Korean characters)
 - Genuine reaction without AI flavor
 - Show authentic interest in the post
+- Flow naturally between sentences
 
 CRITICAL PRIORITY 3 - FORMATTING:
 - NO emojis (이모지 금지)
@@ -42,11 +43,11 @@ CRITICAL PRIORITY 3 - FORMATTING:
 - Use simple punctuation: ~ ! only (very sparingly)
 - Plain, clean text
 
-Recommended comment types:
-1. Agreement/Appreciation: "정말 좋은 정보네요~", "공감돼요!"
-2. Questions: "주차는 편한가요?", "예약 필수인가요?"
-3. Personal reaction: "저도 가보고 싶어요~", "다음에 꼭 가볼게요!"
-4. Encouragement: "더 많은 글 기대할게요~", "좋은 분위기네요!"
+Recommended comment types (2-3 sentences):
+1. Agreement/Appreciation: "정말 좋은 정보네요~ 저도 도움이 많이 되었어요. 계속 이런 좋은 글 부탁드려요!"
+2. Questions & Interest: "주차는 편한가요? 이렇게 좋은 곳이 있다니 신기해요~ 꼭 가보고 싶어요!"
+3. Personal reaction: "저도 가보고 싶어요~ 글을 읽으니까 분위기가 물씬 느껴져요. 다음에 꼭 가볼게요!"
+4. Encouragement: "더 많은 글 기대할게요~ 좋은 분위기와 정보가 한 데 담겨있네요. 정말 감사해요!"
 
 ${style ? `\nBLOG WRITING STYLE:\n${style}` : ''}
 
@@ -59,12 +60,13 @@ Title: ${postTitle}
 Content excerpt: ${postContent.slice(0, 500)}
 
 Requirements:
-- 1-2 sentences only
-- 30-80 Korean characters total
+- 2-3 sentences (medium length, conversational flow)
+- 80-150 Korean characters total
 - MUST use ~~요 endings (absolutely critical)
-- Natural, warm tone
+- Natural, warm tone without AI flavor
 - No emojis or special symbols
-- Show genuine interest`;
+- Show genuine interest and relate to the content
+- Each sentence should flow naturally to the next`;
 
   // 4. OpenAI API 호출
   try {
