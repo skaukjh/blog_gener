@@ -1249,14 +1249,57 @@ export class NaverBlogAutomation {
 
   /**
    * 글 본문 추출 (iframe 내부에서)
+   * 주의: 삭제된 글의 경우 null 반환
    */
   async extractPostContent(postUrl: string): Promise<string | null> {
     try {
+      // 경고창 처리: "게시물이 삭제되었거나 다른 페이지로 변경되었습니다" 경고 감지
+      let hasAlert = false;
+      const dialogHandler = (dialog: any) => {
+        console.log(`[Playwright] 경고창 감지: ${dialog.message()}`);
+        hasAlert = true;
+        dialog.accept().catch(() => {}); // 확인 클릭
+      };
+
+      this.page.once('dialog', dialogHandler);
+
       await this.page.goto(postUrl, {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
       });
       await this.page.waitForTimeout(2000);
+
+      // 경고창이 나타났으면 삭제된 글이므로 null 반환
+      if (hasAlert) {
+        console.log('[Playwright] 삭제된 글: 경고창이 나타났으므로 건너뛰기');
+        return null;
+      }
+
+      // CRITICAL: 각 글에 방문한 후 실제 좋아요 상태 다시 확인
+      // (이웃새글 목록의 좋아요 상태가 정확하지 않을 수 있음)
+      const isLikedNow = await this.page.evaluate(() => {
+        // iframe 내부에서 좋아요 상태 확인
+        const iframe = document.querySelector('iframe#mainFrame, iframe[id*="mainFrame"]') as HTMLIFrameElement;
+        const iframeDoc = iframe?.contentDocument;
+
+        if (!iframeDoc) {
+          console.log('[evaluate] iframe을 찾을 수 없어 좋아요 상태 확인 불가');
+          return false;
+        }
+
+        // 좋아요 버튼의 aria-pressed 속성으로 상태 확인
+        const likeBtn = iframeDoc.querySelector('button[aria-pressed]');
+        const isPressed = likeBtn?.getAttribute('aria-pressed') === 'true';
+
+        console.log(`[evaluate] 좋아요 버튼 상태: aria-pressed="${likeBtn?.getAttribute('aria-pressed')}"`);
+        return isPressed || false;
+      });
+
+      // 좋아요가 눌려있으면 null 반환 (댓글 작성 안함)
+      if (isLikedNow) {
+        console.log('[Playwright] ⚠️ 글 방문 후 재확인: 이미 좋아요가 눌려있음 → 본문 추출 건너뛰기');
+        return null;
+      }
 
       // iframe 내부에서 본문 추출
       const content = await this.page.evaluate(() => {
@@ -1682,8 +1725,9 @@ export class NaverBlogAutomation {
   async autoCommentAndLikeNeighborPosts(
     blogId: string,
     blogPassword: string,
-    maxPosts: number = 10,
-    minInterval: number = 3
+    maxPosts: number = 5,
+    minInterval: number = 3,
+    keepLikingAfter: boolean = false
   ): Promise<any> {
     const result: any = {
       success: true,
@@ -1709,6 +1753,16 @@ export class NaverBlogAutomation {
         timeout: 30000,
       });
       await this.page.waitForTimeout(3000);
+
+      // 댓글 대상 닉네임 목록 불러오기
+      const { getNeighborTargetList } = await import('@/lib/utils/neighbor-target-list');
+      const targetNicknames = await getNeighborTargetList();
+
+      if (targetNicknames && targetNicknames.length > 0) {
+        console.log(`✅ 댓글 대상 닉네임 ${targetNicknames.length}개 로드 완료: ${targetNicknames.join(', ')}`);
+      } else {
+        console.log(`⚠️ 등록된 댓글 대상 닉네임이 없습니다. 좋아요가 없는 글에만 댓글을 작성합니다.`);
+      }
 
       let processedCount = 0;
       let currentPage = 1;
@@ -1774,9 +1828,31 @@ export class NaverBlogAutomation {
           try {
             console.log(`\n[Playwright] [${processedCount + 1}] ${title}`);
             console.log(`[Playwright] URL: ${url}`);
-            console.log(`[Playwright] 좋아요 상태: ${hasLike ? '✓ 누름 (건너뛰기)' : '✗ 미누름 (처리)'}`);
+            console.log(`[Playwright] 좋아요 상태: ${hasLike ? '✓ 누름' : '✗ 미누름'}`);
 
-            // CRITICAL: 좋아요가 이미 눌려있으면 이전에 댓글이 달아진 것으로 판단 → 건너뛰기
+            // 댓글 조건 판단:
+            // 1단계: URL에 대상 닉네임이 포함되는가?
+            const hasTargetNickname = targetNicknames && targetNicknames.some((nick) => url.includes(nick));
+            console.log(`[Playwright] 대상 닉네임 포함: ${hasTargetNickname ? '✓' : '✗'}`);
+
+            // 1단계 체크: URL에 대상 닉네임이 포함되지 않으면 댓글 작성 안함 (좋아요 여부 무관)
+            if (!hasTargetNickname) {
+              result.totalSkipped++;
+              result.details.push({
+                title,
+                url,
+                liked: hasLike,
+                commented: false,
+                reason: 'URL에 대상 닉네임이 포함되지 않음',
+              });
+              console.log(`⏭️  건너뛰기: URL에 대상 닉네임이 포함되지 않음`);
+              continue;
+            }
+
+            // 2단계 체크: URL에 대상 닉네임이 포함되면, 좋아요가 없어야 댓글 작성
+            const matchedNickname = targetNicknames?.find((nick) => url.includes(nick));
+            console.log(`✅ 대상 닉네임 "${matchedNickname}" 일치!`);
+
             if (hasLike) {
               result.totalSkipped++;
               result.details.push({
@@ -1784,25 +1860,30 @@ export class NaverBlogAutomation {
                 url,
                 liked: true,
                 commented: false,
-                reason: '이미 좋아요가 눌려있음 (전에 댓글이 달아짐)',
+                reason: '대상이지만 이미 좋아요가 눌려있음',
               });
-              console.log(`⏭️  이미 좋아요가 눌려있으므로 건너뛰기`);
+              console.log(`⏭️  건너뛰기: URL에 닉네임 있지만 좋아요가 이미 눌려있음`);
               continue;
             }
 
-            // 본문 추출
+            console.log(`✅ 댓글 작성 조건 만족: URL에 대상 닉네임 포함 + 좋아요 없음`);
+
+            // 본문 추출 (좋아요 상태 재확인 포함)
             console.log(`📖 본문 추출 중...`);
             const content = await this.extractPostContent(url);
             if (!content || content.length < 100) {
               result.totalSkipped++;
+              const reason = !content
+                ? '본문 추출 불가 (삭제된 글 또는 경고창 또는 좋아요가 눌려있음)'
+                : '본문이 너무 짧음';
               result.details.push({
                 title,
                 url,
-                liked: false,
+                liked: !content ? true : false, // 좋아요 상태 재확인 후 null이면 true
                 commented: false,
-                reason: '본문이 너무 짧거나 없음',
+                reason,
               });
-              console.log(`❌ 본문 추출 실패`);
+              console.log(`❌ 본문 추출 실패: ${reason}`);
               continue;
             }
 
@@ -1847,11 +1928,14 @@ export class NaverBlogAutomation {
               `✅ [${processedCount}/${maxPosts}] 완료 (댓글: ${commentSuccess ? '✓' : '✗'}, 좋아요: ${likeSuccess ? '✓' : '✗'})`
             );
 
-            // 다음 글 처리 전 300~400초 랜덤 대기 (스팸 방지)
+            // 다음 글 처리 전 minInterval 기반 랜덤 대기 (스팸 방지)
             if (processedCount < maxPosts) {
-              const waitTime = Math.random() * 100000 + 300000; // 300~400초 사이 랜덤
-              console.log(`⏳ ${Math.round(waitTime / 1000)}초 대기 중...`);
-              await this.page.waitForTimeout(waitTime);
+              // minInterval은 분 단위이므로 밀리초로 변환, ±30초 랜덤 추가
+              const baseWaitMs = minInterval * 60000;
+              const randomVariation = (Math.random() - 0.5) * 60000; // ±30초
+              const waitTime = baseWaitMs + randomVariation;
+              console.log(`⏳ ${Math.round(Math.max(1, waitTime / 1000))}초 대기 중...`);
+              await this.page.waitForTimeout(Math.max(1000, waitTime)); // 최소 1초
             }
           } catch (err) {
             console.error('[Playwright] 글 처리 중 오류:', err);
@@ -1878,6 +1962,100 @@ export class NaverBlogAutomation {
         } else {
           break;
         }
+      }
+
+      // keepLikingAfter가 true일 때: 댓글 작성이 완료된 후에도 계속 좋아요 누르기
+      if (keepLikingAfter && processedCount >= maxPosts) {
+        console.log('\n🔄 [keepLikingAfter] 댓글 작성 완료! 이제 추가 글들에 좋아요만 계속 누릅니다...');
+
+        let likingPage = 1;
+        let likeOnlyCount = 0;
+        const maxLikeOnlyAttempts = 50; // 최대 50개 글까지만 좋아요 시도
+
+        while (likeOnlyCount < maxLikeOnlyAttempts) {
+          console.log(`\n[좋아요 계속] 페이지 ${likingPage} 처리 중...`);
+
+          const likePageResults = await this.page.evaluate(() => {
+            const articles: Array<{ title: string; url: string; hasLike: boolean }> = [];
+            const linkElements = document.querySelectorAll(
+              '#content > section > div.list_post_article.list_post_article_comments a.desc_inner'
+            );
+
+            linkElements.forEach((linkElement) => {
+              const anchor = linkElement as HTMLAnchorElement;
+              if (!anchor.href) return;
+
+              const title = anchor.textContent?.trim() || anchor.getAttribute('title') || `[제목 없음]`;
+              const url = anchor.href;
+
+              let hasLike = false;
+              const articleItem = anchor.closest('.list_post_article');
+              if (articleItem) {
+                const likeBtn = articleItem.querySelector('button[aria-pressed="true"], button.u_likeit_on');
+                hasLike = !!likeBtn;
+              }
+
+              articles.push({ title, url, hasLike });
+            });
+
+            return articles;
+          });
+
+          console.log(`[좋아요 계속] 발견된 글: ${likePageResults.length}개`);
+
+          for (const article of likePageResults) {
+            if (likeOnlyCount >= maxLikeOnlyAttempts) break;
+
+            const { title, url, hasLike } = article;
+
+            // 좋아요가 이미 눌려있으면 스킵
+            if (hasLike) {
+              console.log(`⏭️  [좋아요 계속] "${title}" - 이미 좋아요 누름 (스킵)`);
+              continue;
+            }
+
+            try {
+              console.log(`👍 [좋아요 계속] "${title}" - 좋아요 누르는 중...`);
+              const likeSuccess = await this.toggleLike(url);
+
+              if (likeSuccess) {
+                result.totalLiked++;
+                console.log(`✓ [좋아요 계속] 좋아요 완료`);
+              } else {
+                console.log(`❌ [좋아요 계속] 좋아요 실패`);
+              }
+
+              likeOnlyCount++;
+
+              // 좋아요 간 minInterval 기반 랜덤 대기 (스팸 방지)
+              if (likeOnlyCount < maxLikeOnlyAttempts) {
+                const baseWaitMs = minInterval * 60000;
+                const randomVariation = (Math.random() - 0.5) * 60000; // ±30초
+                const waitTime = baseWaitMs + randomVariation;
+                console.log(`⏳ ${Math.round(Math.max(1, waitTime / 1000))}초 대기 중...`);
+                await this.page.waitForTimeout(Math.max(1000, waitTime));
+              }
+            } catch (err) {
+              console.error('[좋아요 계속] 오류:', err);
+            }
+          }
+
+          // 다음 페이지로 이동
+          if (likeOnlyCount < maxLikeOnlyAttempts && likePageResults.length > 0) {
+            likingPage++;
+            const nextPageUrl = `https://section.blog.naver.com/BlogHome.naver?directoryNo=0&currentPage=${likingPage}&groupId=0`;
+            console.log(`[좋아요 계속] 다음 페이지로 이동: ${likingPage}`);
+            await this.page.goto(nextPageUrl, {
+              waitUntil: 'domcontentloaded',
+              timeout: 30000,
+            });
+            await this.page.waitForTimeout(2000);
+          } else {
+            break;
+          }
+        }
+
+        console.log(`\n✅ [좋아요 계속] 완료! 총 ${likeOnlyCount}개 글에 좋아요 추가`);
       }
     } catch (err) {
       result.success = false;

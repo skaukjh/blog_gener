@@ -26,12 +26,41 @@ export const IMAGE_ANALYSIS_PROMPT = `You are an expert at analyzing food and li
 - DO NOT infer, assume, or add information not visible in the image
 - DO NOT mention food names, tastes, or cooking methods that aren't visually obvious
 - DO NOT make claims about texture or taste without visual evidence
-- ONLY describe: colors, plating, visible ingredients, presentation, composition, lighting, materials, atmosphere
+- ONLY describe: plating, visible ingredients, presentation, composition, lighting, materials, atmosphere
 
-FOCUS ON VISUAL DETAILS:
-1. For food images: Colors, plating, garnishes, visible textures, portion size, tableware, lighting, visible ingredients
-2. For interior images: Decor, furniture, lighting, color scheme, materials, atmosphere, visible details
-3. For people/activity: Actions, expressions, environment, setting details, visible context
+🚫 DO NOT DESCRIBE FOOD COLORS:
+- Avoid describing food colors (e.g., "황금색", "붉은색", "갈색" for food items)
+- Instead focus on: plating style, visible ingredients, presentation, portions
+- Exception: You CAN describe color of non-food items (plates, utensils, tables, decor)
+
+STOREFRONT & EXTERIOR IMAGES - BRIEF & SIMPLE:
+- For storefronts/signs/exteriors: Keep description BRIEF and SIMPLE
+- Description should be: "~~한 디자인이라 눈에 잘 띄고 세련된 느낌이었어요!" or "외관은 깔끔해보이는..." style
+- DO NOT over-analyze: colors, materials, architectural details
+- Just note: overall impression, cleanliness, feel - that's enough
+
+MENU/SIGNAGE IMAGES - TEXT-FIRST PRIORITY:
+- For menu boards, price signs, text content: TEXT CONTENT IS PRIMARY FOCUS
+- Extract and summarize actual text content (prices, menu items, information displayed)
+- Describe the readable information in detail (e.g., "메뉴가 3가지 세트 가격으로 29,000원, 35,000원, 40,000원" etc)
+- Mention format/organization briefly if relevant
+- DO NOT over-analyze design, fonts, colors - focus on TEXT INFORMATION
+- Summary: "메뉴판에는 다양한 세트 메뉴와 가격이 명시되어 있었어요..." type description
+- 🔑 KEY: Extract actual readable text/numbers for blog reference
+
+INTERIOR IMAGES - BRIEF & GENERAL:
+- For interiors: "2인에서 X인까지 다양한 크기의 테이블, 2인 테이블이 주로 많았고요, 넓직하고 깔끔한" style
+- Key points: table sizes, seating layout, cleanliness, general atmosphere
+- DO NOT over-describe: detailed furniture, decoration, specific design elements
+- Keep it: simple, functional, natural
+
+FOCUS ON VISUAL DETAILS - PRIORITY ORDER:
+1. ⭐ TEXT CONTENT FIRST (if present): Menus, prices, signage text - extract readable information
+2. For food images: Plating, visible ingredients, garnishes, portion size, tableware, lighting - NO color descriptions
+3. For interior images: Table sizes, seating, cleanliness, atmosphere - brief only
+4. For storefronts: Overall impression, feel, cleanliness - one line is enough
+5. When images contain BOTH text and visuals: PRIORITIZE text extraction first, then visual details
+6. Examples: Menu board with prices → Extract prices first, then describe visual layout; Product packaging with text → Extract text content first
 
 IMPORTANT: You MUST respond with valid JSON format. No markdown, no code blocks. Start with { and end with }.
 
@@ -43,9 +72,9 @@ Respond in compressed JSON format to minimize tokens:
     {
       "idx": 1,
       "cats": [{"category": "string", "confidence": 0.95, "details": "specific visual details ONLY"}],
-      "desc": "detailed description of ONLY what is VISUALLY PRESENT - colors, textures, plating, composition",
+      "desc": "detailed description of ONLY what is VISUALLY PRESENT - focus on content, composition, lighting. NO food colors. Keep storefront/menu/interior simple & brief",
       "mood": "mood or atmosphere visible in image (e.g., warm, elegant, cozy)",
-      "visualDetails": "ONLY visual elements: colors, textures, composition, lighting - NO assumptions"
+      "visualDetails": "visual elements: composition, lighting, textures (not food colors). For interior: table sizes, seating. For storefront: overall feel. For menu: text content"
     }
   ],
   "overall": {
@@ -58,16 +87,17 @@ Respond in compressed JSON format to minimize tokens:
 Requirements:
 1. Each image must have idx, cats, desc, mood, and visualDetails
 2. Return a valid JSON object only - no additional text
-3. CRITICAL: Be detailed and descriptive - focus ONLY on what is VISUALLY PRESENT (colors, shapes, composition, lighting)
+3. CRITICAL: Be detailed and descriptive - focus ONLY on what is VISUALLY PRESENT
 4. Include 3-5 practical suggestions for blog placement
 5. Confidence should be between 0.7 and 0.99
 6. Categories should be specific (not vague)
-7. visualDetails field should highlight ONLY: colors, textures, composition, lighting effects, visible materials
-8. For food: describe plating, visible ingredients, garnishes, presentation style, colors, shapes
-9. For interior: describe furniture, decor items, lighting style, color palette, visible materials
-10. You CAN infer taste/aroma/texture from visual cues (colors, plating, presentation, texture appearance)
-11. Examples: "황금색 → 고소할 것 같아요", "윤기 있는 → 촉촉할 것 같아요", "겹겹이 쌓인 → 식감이 있을 것 같아요"
-12. Do NOT add information that requires knowledge beyond what the camera captured
+7. visualDetails field: composition, lighting, textures (NO food colors)
+8. For food: describe plating, visible ingredients, garnishes, presentation style, shapes - NO COLOR
+9. For interior: BRIEF - table sizes, seating variety, cleanliness, atmosphere
+10. For storefronts: BRIEF - one line about overall feel/impression
+11. For menus: Text content (prices, items mentioned) - not design details
+12. You CAN infer taste/aroma/texture from visual cues EXCEPT food colors
+13. Do NOT add information that requires knowledge beyond what the camera captured
 
 Example output structure is above. Follow it exactly.`;
 

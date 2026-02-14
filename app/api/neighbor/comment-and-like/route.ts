@@ -39,8 +39,9 @@ export async function POST(
     const {
       blogId,
       blogPassword,
-      maxPosts = 10,
+      maxPosts = 5,
       minInterval = 3,
+      keepLikingAfter = false,
     } = body;
 
     // 입력값 검증
@@ -70,7 +71,8 @@ export async function POST(
       blogId,
       blogPassword,
       limitedMaxPosts,
-      minInterval
+      minInterval,
+      keepLikingAfter
     );
 
     return NextResponse.json(result);

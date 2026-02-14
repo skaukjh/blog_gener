@@ -366,6 +366,7 @@ export interface NeighborCommentRequest {
   blogPassword: string;
   maxPosts?: number;
   minInterval?: number;
+  keepLikingAfter?: boolean;
 }
 
 export interface NeighborCommentDetail {

@@ -1,0 +1,2 @@
+[     171ms] [WARNING] setPolicyInfo {versionInfo: Object, sdkInfo: Object, sentryInfo: Object} @ https://ssl.pstatic.net/tveta/libs/glad/prod/gfp-core.js:0
+[   54191ms] [WARNING] The key "target-densitydpi" is not supported. @ https://nid.naver.com/nidlogin.login:5

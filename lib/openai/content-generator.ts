@@ -52,6 +52,13 @@ Length: ${length}
 Keywords to include naturally (${keywords.length} total):
 ${keywordList}
 
+⚠️ KEYWORD INCLUSION RULES:
+- The numbers shown above are MINIMUM occurrences (e.g., "keyword (2회)" means AT LEAST 2 times)
+- You CAN include keywords MORE TIMES than the minimum shown - that's perfectly fine
+- Include keywords naturally throughout the text, not forced
+- Distribute keywords evenly to maintain natural flow
+- Blend keywords into sentences naturally - don't make them stand out
+
 ⚠️ IMAGE PLACEMENT (CRITICAL - CONTEXT-BASED):
 - TOTAL IMAGES: ${imageCount}
 - Use EXACTLY ${imageCount} image marker(s): ${Array.from({ length: imageCount }, (_, i) => `[IMAGE_${i + 1}]`).join(", ")}
@@ -110,7 +117,7 @@ Guidelines: Describe these menu items with visual details and personal impressio
 Focus on what you can see in the images. Mention prices naturally when relevant.`;
       }
 
-      // 리뷰 정보 추가
+      // 리뷰 정보 추가 (선택된 댓글)
       if (placeInfo.reviews && placeInfo.reviews.length > 0) {
         const reviewTexts = placeInfo.reviews
           .map(
@@ -119,12 +126,25 @@ Focus on what you can see in the images. Mention prices naturally when relevant.
           )
           .join('\n');
 
-        userPrompt += `\n\nCUSTOMER REVIEWS (use as context, not direct quotes):
+        userPrompt += `\n\n⭐ CUSTOMER REVIEWS (ACTIVELY USE IN YOUR WRITING - PRIORITY):
 ${reviewTexts}
 
-Use these reviews to understand what customers value about this place.
-Weave positive aspects naturally into your own writing - don't quote directly.
-Focus on visual and personal observations rather than copying reviews.`;
+CRITICAL INSTRUCTIONS FOR REVIEWS:
+1. These are SELECTED reviews by the user - you MUST actively incorporate them
+2. DO NOT ignore or downplay these reviews
+3. Weave the positive aspects and experiences from these reviews NATURALLY into your own writing
+4. Transform review content into your own words and sentences
+5. Use review insights to:
+   - Highlight what customers value most about this place
+   - Emphasize positive experiences mentioned in reviews
+   - Reference specific details customers appreciated
+   - Create authentic recommendations based on real customer experiences
+6. Examples:
+   - Review says: "음식이 신선하고 친절해요"
+   - Your writing: "음식이 정말 신선하고 직원들도 친절해서 좋았어요"
+   - Review says: "가성비 최고예요"
+   - Your writing: "생각보다 가격이 저렴해서 자주 방문하고 싶을 정도였어요"
+7. Your goal: Make the blog post feel authentic by incorporating what REAL customers experienced`;
       }
     }
 
@@ -140,10 +160,12 @@ NEVER use: ~~다, ~~한다, ~~했다 or any non-~~요 endings.
 PRIORITY 2 - IMAGE-BASED DESCRIPTIONS:
 1. Describe ONLY what is ACTUALLY VISIBLE in the provided images
 2. Use image descriptions as source of truth for what to write about
-3. For food: visible plating, colors, presentation, textures
-4. For interiors: visible decor, ambiance, furniture, lighting
-5. Rich sensory language: taste, texture, aroma, appearance
-6. NO generic filler - focus 80% on what images show, 20% on context
+3. For food: visible plating, presentation, garnishes, portion size, tableware (AVOID describing food colors like 황금색, 붉은색, 갈색)
+4. For interiors: Keep BRIEF - table sizes, seating variety (2인부터 X인까지), cleanliness, general atmosphere
+5. For storefronts/signs: Keep BRIEF and simple (1-2 lines max) - "~~한 디자인이라 눈에 잘 띄고 세련된 느낌이었어요!" style
+6. For menus/prices: Focus on TEXT CONTENT (what's shown, prices) - not design details
+7. Rich sensory language: taste, texture, aroma, appearance (but AVOID food color descriptions)
+8. NO generic filler - focus 80% on what images show, 20% on context
 
 PRIORITY 3 - NATURAL, WARM TONE & AUTHENTICITY:
 1. Write like chatting with a close friend - warm, genuine, conversational

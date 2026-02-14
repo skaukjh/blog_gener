@@ -46,7 +46,14 @@
       "Bash(netstat:*)",
       "Bash(npx tsx:*)",
       "Bash(lsof:*)",
-      "mcp__playwright__browser_handle_dialog"
+      "mcp__playwright__browser_handle_dialog",
+      "Bash(/tmp/test-api.js:*)",
+      "Bash(node:*)",
+      "Bash(xargs kill:*)",
+      "Bash(cmd /c \"taskkill /PID 8264 /F\")",
+      "Bash(git reset:*)",
+      "Bash(git push:*)",
+      "Bash(shutdown:*)"
     ]
   }
 }

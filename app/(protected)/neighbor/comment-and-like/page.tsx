@@ -1,18 +1,138 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navigation from '@/components/layout/Navigation';
-import { AlertCircle, X } from 'lucide-react';
+import { AlertCircle, X, Plus, Trash2 } from 'lucide-react';
 import type { NeighborCommentResult } from '@/types/index';
 
 export default function NeighborCommentAndLikePage() {
   const [blogId, setBlogId] = useState('');
   const [blogPassword, setBlogPassword] = useState('');
-  const [maxPosts, setMaxPosts] = useState(10);
+  const [maxPosts, setMaxPosts] = useState(5);
   const [minInterval, setMinInterval] = useState(3);
+  const [keepLikingAfter, setKeepLikingAfter] = useState(false);
   const [result, setResult] = useState<NeighborCommentResult | null>(null);
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // 닉네임 목록 관련 상태
+  const [targetNicknames, setTargetNicknames] = useState<string[]>([]);
+  const [newNickname, setNewNickname] = useState('');
+  const [loadingTargetList, setLoadingTargetList] = useState(false);
+  const [targetListError, setTargetListError] = useState('');
+  const [targetListSuccess, setTargetListSuccess] = useState('');
+
+  // 초기 로드: 저장된 닉네임 목록 불러오기
+  useEffect(() => {
+    loadTargetList();
+  }, []);
+
+  const loadTargetList = async () => {
+    setLoadingTargetList(true);
+    try {
+      const response = await fetch('/api/neighbor/target-list');
+      const data = await response.json();
+
+      if (data.success) {
+        setTargetNicknames(data.nicknames || []);
+        setTargetListError('');
+      } else {
+        setTargetListError('목록 불러오기 실패');
+      }
+    } catch (err) {
+      console.error('목록 불러오기 오류:', err);
+      setTargetListError('목록을 불러올 수 없습니다');
+    } finally {
+      setLoadingTargetList(false);
+    }
+  };
+
+  const handleInitFromFile = async () => {
+    setLoadingTargetList(true);
+    try {
+      const response = await fetch('/api/neighbor/target-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initFromFile: true }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTargetNicknames(data.nicknames || []);
+        setTargetListSuccess(`neighbor_list.txt에서 ${data.nicknames.length}개 로드 완료`);
+        setTargetListError('');
+        setTimeout(() => setTargetListSuccess(''), 3000);
+      } else {
+        setTargetListError(data.error || '로드 실패');
+      }
+    } catch (err) {
+      console.error('파일 로드 오류:', err);
+      setTargetListError('파일을 로드할 수 없습니다');
+    } finally {
+      setLoadingTargetList(false);
+    }
+  };
+
+  const handleAddNickname = async () => {
+    if (!newNickname.trim()) {
+      setTargetListError('닉네임을 입력하세요');
+      return;
+    }
+
+    setLoadingTargetList(true);
+    try {
+      const response = await fetch('/api/neighbor/target-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', nickname: newNickname.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTargetNicknames(data.nicknames || []);
+        setNewNickname('');
+        setTargetListSuccess(`"${newNickname}" 추가 완료`);
+        setTargetListError('');
+        setTimeout(() => setTargetListSuccess(''), 3000);
+      } else {
+        setTargetListError(data.error || '추가 실패');
+      }
+    } catch (err) {
+      console.error('추가 오류:', err);
+      setTargetListError('닉네임을 추가할 수 없습니다');
+    } finally {
+      setLoadingTargetList(false);
+    }
+  };
+
+  const handleRemoveNickname = async (nickname: string) => {
+    setLoadingTargetList(true);
+    try {
+      const response = await fetch('/api/neighbor/target-list', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTargetNicknames(data.nicknames || []);
+        setTargetListSuccess(`"${nickname}" 제거 완료`);
+        setTargetListError('');
+        setTimeout(() => setTargetListSuccess(''), 3000);
+      } else {
+        setTargetListError(data.error || '제거 실패');
+      }
+    } catch (err) {
+      console.error('제거 오류:', err);
+      setTargetListError('닉네임을 제거할 수 없습니다');
+    } finally {
+      setLoadingTargetList(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +155,7 @@ export default function NeighborCommentAndLikePage() {
           blogPassword,
           maxPosts,
           minInterval,
+          keepLikingAfter,
         }),
       });
 
@@ -93,21 +214,126 @@ export default function NeighborCommentAndLikePage() {
             </div>
           </div>
 
+          {/* 닉네임 목록 관리 섹션 */}
+          <div className="glass-effect rounded-xl p-8 mb-8 shadow-md-soft border border-amber-200 bg-amber-50">
+            <h2 className="text-2xl font-bold text-amber-900 mb-4">🎯 댓글 대상 닉네임 관리</h2>
+
+            <p className="text-sm text-amber-700 mb-4">
+              댓글을 작성할 이웃 블로거의 닉네임을 등록하세요. <span className="font-semibold">등록된 닉네임이 URL에 포함되어 있고, 좋아요가 없는 글에만 댓글을 작성합니다.</span>
+            </p>
+
+            {targetListError && (
+              <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded">
+                {targetListError}
+              </div>
+            )}
+
+            {targetListSuccess && (
+              <div className="mb-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded">
+                {targetListSuccess}
+              </div>
+            )}
+
+            {/* 초기화 버튼 */}
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={handleInitFromFile}
+                disabled={loadingTargetList}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700 disabled:bg-gray-400 smooth-transition"
+              >
+                {loadingTargetList ? '로딩 중...' : '📄 neighbor_list.txt에서 로드'}
+              </button>
+              <p className="text-xs text-amber-600 mt-2">
+                neighbor_list.txt 파일의 모든 닉네임을 불러와 업데이트합니다.
+              </p>
+            </div>
+
+            {/* 닉네임 추가 */}
+            <div className="mb-6">
+              <label className="block font-semibold text-amber-900 mb-2">새 닉네임 추가</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newNickname}
+                  onChange={(e) => setNewNickname(e.target.value)}
+                  placeholder="닉네임 입력 (예: jinhee-yoo)"
+                  className="flex-1 px-4 py-3 border border-amber-200 rounded-lg focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+                  disabled={loadingTargetList}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddNickname}
+                  disabled={loadingTargetList || !newNickname.trim()}
+                  className="px-4 py-3 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700 disabled:bg-gray-400 smooth-transition flex items-center gap-2"
+                >
+                  <Plus className="w-5 h-5" /> 추가
+                </button>
+              </div>
+            </div>
+
+            {/* 닉네임 목록 표시 */}
+            <div>
+              <label className="block font-semibold text-amber-900 mb-3">
+                등록된 닉네임 ({targetNicknames.length}개)
+              </label>
+              {targetNicknames.length === 0 ? (
+                <p className="text-gray-500 italic py-4">
+                  등록된 닉네임이 없습니다. 위의 버튼으로 로드하거나 추가해주세요.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {targetNicknames.map((nickname) => (
+                    <div
+                      key={nickname}
+                      className="flex items-center justify-between bg-white border border-amber-200 rounded-lg px-3 py-2 hover:bg-amber-50 smooth-transition"
+                    >
+                      <span className="font-medium text-gray-700">{nickname}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveNickname(nickname)}
+                        disabled={loadingTargetList}
+                        className="text-red-500 hover:text-red-700 disabled:text-gray-400 ml-2"
+                        title="제거"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* 메인 폼 */}
           <div className="glass-effect rounded-xl p-8 mb-8 shadow-md-soft">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* 안내 메시지 */}
               <div className="p-4 bg-purple-50 border border-purple-300 rounded-lg">
-                <p className="text-purple-900 font-semibold">📌 사용 방법</p>
-                <p className="text-sm text-purple-700 mt-2">
-                  이웃새글 중 아직 좋아요를 누르지 않은 글만 선택하여, 각 글의
-                  내용을 읽고 AI가 자동으로 블로그 스타일에 맞는 댓글을 작성합니다.
-                  <br />
-                  <span className="text-purple-600 font-semibold">
-                    주의: 최대 10개 글까지만 처리되며, 각 글마다 3분 이상 간격으로
-                    처리됩니다 (스팸 방지).
-                  </span>
-                </p>
+                <p className="text-purple-900 font-semibold">📌 댓글 작성 조건</p>
+                <div className="text-sm text-purple-700 mt-2 space-y-2">
+                  <p>
+                    📋 <span className="font-semibold">1단계:</span> 글의 URL에 위의 닉네임 목록에 있는 이름이 포함되어 있는가?
+                  </p>
+                  <p className="ml-6 text-purple-600">
+                    ✗ 포함 안됨 → 댓글을 달지 않습니다 (좋아요 여부 무관)
+                  </p>
+                  <p className="ml-6 text-purple-600">
+                    ✓ 포함됨 → 2단계 진행
+                  </p>
+                  <p>
+                    ❤️ <span className="font-semibold">2단계:</span> 포함되었다면, 좋아요가 없는가?
+                  </p>
+                  <p className="ml-6 text-purple-600">
+                    ✗ 좋아요 있음 → 댓글을 달지 않습니다
+                  </p>
+                  <p className="ml-6 text-green-600 font-semibold">
+                    ✓ 좋아요 없음 → 댓글을 작성합니다! 🎉
+                  </p>
+                  <p className="text-purple-600 font-semibold mt-3">
+                    주의: 한 번에 최대 5개 글의 댓글을 작성하며, 각 글마다 3분 이상 간격으로 처리됩니다 (스팸 방지).
+                  </p>
+                </div>
               </div>
 
               {/* 블로그 ID */}
@@ -154,12 +380,12 @@ export default function NeighborCommentAndLikePage() {
                   min="1"
                   max="10"
                   value={maxPosts}
-                  onChange={(e) => setMaxPosts(Math.min(10, parseInt(e.target.value) || 1))}
+                  onChange={(e) => setMaxPosts(Math.min(10, parseInt(e.target.value) || 5))}
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 smooth-transition"
                   disabled={isProcessing}
                 />
                 <p className="text-gray-500 text-sm mt-2">
-                  💡 최대 10개까지 가능합니다 (스팸 방지)
+                  💡 신규 댓글 작성 글 수입니다. 최대 10개까지 가능합니다 (스팸 방지)
                 </p>
               </div>
 
@@ -180,6 +406,23 @@ export default function NeighborCommentAndLikePage() {
                 <p className="text-gray-500 text-sm mt-2">
                   💡 각 글을 처리한 후 다음 글까지의 최소 대기 시간 (3분 이상
                   권장)
+                </p>
+              </div>
+
+              {/* 좋아요 지속하기 */}
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={keepLikingAfter}
+                    onChange={(e) => setKeepLikingAfter(e.target.checked)}
+                    className="w-5 h-5 text-primary rounded focus:ring-2 focus:ring-primary/50 cursor-pointer"
+                    disabled={isProcessing}
+                  />
+                  <span className="font-semibold text-gray-900">👍 좋아요 지속하기</span>
+                </label>
+                <p className="text-gray-500 text-sm mt-2 ml-8">
+                  체크하면, 댓글 작성이 완료된 후에도 프로그램을 종료하지 않고 새로운 글에 계속 좋아요를 누릅니다
                 </p>
               </div>
 
