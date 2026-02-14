@@ -581,10 +581,20 @@ class NaverBlogAutomation {
       // 페이지 로드 대기
       await this.page.waitForTimeout(1000);
 
-      // 날짜 파싱
+      // 날짜 파싱 (iframe 내부에서 실행)
       const dateString = await this.page.evaluate(() => {
+        // iframe 찾기
+        const iframe = document.querySelector('iframe');
+        const iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document;
+
+        if (!iframeDoc) {
+          console.log('[evaluate] iframe을 찾을 수 없습니다');
+          return '';
+        }
+
+        // iframe 내부에서 날짜 추출
         // 사용자가 제시한 선택자로 날짜 추출
-        const dateElement = document.querySelector(
+        const dateElement = iframeDoc.querySelector(
           '#SE-BC25FC5F-FE4A-47E4-9CD5-18A13F09A130 > div > div > div.blog2_container > span > span.desc > span'
         );
 
@@ -592,7 +602,7 @@ class NaverBlogAutomation {
           return dateElement.textContent?.trim() || '';
         }
 
-        // 폴백: 다른 날짜 선택자들 시도
+        // 폴백: 다른 날짜 선택자들 시도 (iframe 내부)
         const alternateSelectors = [
           '.se_publishDate',
           '.gm-ucc-date',
@@ -603,10 +613,19 @@ class NaverBlogAutomation {
         ];
 
         for (const selector of alternateSelectors) {
-          const el = document.querySelector(selector);
+          const el = iframeDoc.querySelector(selector);
           if (el) {
             const dateText = el.getAttribute('datetime') || el.textContent?.trim() || '';
             if (dateText) return dateText;
+          }
+        }
+
+        // 마지막 방법: 모든 span에서 날짜 패턴 찾기
+        const allSpans = iframeDoc.querySelectorAll('span');
+        for (const span of allSpans) {
+          const text = span.textContent?.trim() || '';
+          if (/\d{4}.*[.\s]+\d{1,2}.*[.\s]+\d{1,2}/.test(text)) {
+            return text;
           }
         }
 
@@ -739,9 +758,18 @@ class NaverBlogAutomation {
       });
       console.log(`[Playwright] PostView 페이지 HTML 크기: ${htmlSize} bytes`);
 
-      // 좋아요 버튼 찾기 및 상태 확인 (정확한 선택자 사용)
+      // 좋아요 버튼 찾기 및 상태 확인 (정확한 선택자 사용, iframe 처리)
       const likeInfo = await this.page.evaluate((logNoParam: string | null) => {
         console.log(`[evaluate] 좋아요 버튼 검색 (logNo: ${logNoParam})...`);
+
+        // iframe 찾기
+        const iframe = document.querySelector('iframe');
+        const iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document;
+
+        if (!iframeDoc) {
+          console.log('[evaluate] iframe을 찾을 수 없습니다');
+          return { found: false, isLiked: false };
+        }
 
         let likeButton: HTMLElement | null = null;
         let debugInfo = {
@@ -752,9 +780,9 @@ class NaverBlogAutomation {
 
         // 전략 1: 사용자가 제시한 정확한 선택자 (logNo 기반)
         if (logNoParam) {
-          const selector = `#area_sympathy${logNoParam} > div > div > div > a`;
-          console.log(`[evaluate] 선택자 1: ${selector}`);
-          const element = document.querySelector(selector);
+          const selector = `#area_sympathy${logNoParam} > a`;
+          console.log(`[evaluate] 선택자 1 (iframe 내): ${selector}`);
+          const element = iframeDoc.querySelector(selector);
           if (element) {
             likeButton = element as HTMLElement;
             debugInfo.strategies.push(`정확한 선택자 발견: ${selector}`);
@@ -765,8 +793,8 @@ class NaverBlogAutomation {
         // 전략 2: #area_sympathy{logNo} 범위 내에서 a 태그 찾기
         if (!likeButton && logNoParam) {
           const selector = `#area_sympathy${logNoParam} a`;
-          console.log(`[evaluate] 선택자 2: ${selector}`);
-          const sympathyArea = document.querySelector(selector);
+          console.log(`[evaluate] 선택자 2 (iframe 내): ${selector}`);
+          const sympathyArea = iframeDoc.querySelector(selector);
           if (sympathyArea) {
             likeButton = sympathyArea as HTMLElement;
             debugInfo.strategies.push(`area_sympathy 범위 내 a 태그`);
@@ -774,42 +802,16 @@ class NaverBlogAutomation {
           }
         }
 
-        // 전략 3: #printPost1 내의 좋아요 버튼 찾기
+        // 전략 3: "공감" 텍스트로 검색 (iframe 내부)
         if (!likeButton) {
-          console.log('[evaluate] 선택자 3: #printPost1 내 좋아요 검색');
-          const printPost = document.querySelector('#printPost1');
-          if (printPost) {
-            // 여러 선택자 시도
-            const selectors = [
-              'td.bcc a',
-              'span.u_likeit_icons',
-              'a[aria-label*="좋아요"]',
-              'a[class*="like"]',
-            ];
-
-            for (const sel of selectors) {
-              const el = printPost.querySelector(sel);
-              if (el) {
-                likeButton = el as HTMLElement;
-                debugInfo.strategies.push(`#printPost1 내 ${sel}`);
-                console.log(`[evaluate] ✓ #printPost1 내 ${sel} 발견`);
-                break;
-              }
-            }
-          }
-        }
-
-        // 전략 4: "좋아요" 텍스트 검색 (모든 a 태그)
-        if (!likeButton) {
-          console.log('[evaluate] 선택자 4: "좋아요" 텍스트 검색');
-          const allLinks = document.querySelectorAll('a');
+          console.log('[evaluate] 선택자 3: "공감" 텍스트 검색');
+          const allLinks = iframeDoc.querySelectorAll('a, button');
           for (const link of allLinks) {
             const text = link.textContent?.trim() || '';
-            const ariaLabel = link.getAttribute('aria-label') || '';
-            if (text.includes('좋아요') || ariaLabel.includes('좋아요')) {
-              likeButton = link;
-              debugInfo.strategies.push(`"좋아요" 텍스트로 검색`);
-              console.log(`[evaluate] ✓ "좋아요" 텍스트로 버튼 발견`);
+            if (text.includes('공감')) {
+              likeButton = link as HTMLElement;
+              debugInfo.strategies.push(`"공감" 텍스트로 검색`);
+              console.log(`[evaluate] ✓ "공감" 텍스트로 버튼 발견`);
               break;
             }
           }
@@ -831,10 +833,9 @@ class NaverBlogAutomation {
         // aria-pressed 속성 확인 (문자열 'true' 확인)
         const isLikedByAriaPressed = ariaPressedValue === 'true';
 
-        // 클래스로도 확인 (폴백)
-        const isLikedByClass = likeButton.classList.contains('on') ||
-                               likeButton.classList.contains('active') ||
-                               likeButton.classList.contains('is_like');
+        // 클래스로도 확인 (폴백) - 'off' 클래스 확인
+        const isLikedByClass = !likeButton.classList.contains('off') &&
+                               !likeButton.className.includes('_face off');
 
         const isLiked = isLikedByAriaPressed || isLikedByClass;
 
@@ -852,16 +853,26 @@ class NaverBlogAutomation {
       if (!likeInfo.isLiked) {
         console.log(`[Playwright] 좋아요 누르기: ${postUrl}`);
 
-        // 좋아요 버튼 클릭 (정확한 선택자 사용)
+        // 좋아요 버튼 클릭 (정확한 선택자 사용, iframe 처리)
         const clickSuccess = await this.page.evaluate((logNoParam: string | null) => {
           console.log('[evaluate] 좋아요 버튼 클릭 시작...');
+
+          // iframe 찾기
+          const iframe = document.querySelector('iframe');
+          const iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document;
+
+          if (!iframeDoc) {
+            console.log('[evaluate] iframe을 찾을 수 없습니다');
+            return false;
+          }
+
           let likeElement: HTMLElement | null = null;
 
           // 전략 1: 사용자가 제시한 정확한 선택자
           if (logNoParam) {
-            const selector = `#area_sympathy${logNoParam} > div > div > div > a`;
-            console.log(`[evaluate] 선택자 1: ${selector}`);
-            const element = document.querySelector(selector);
+            const selector = `#area_sympathy${logNoParam} > a`;
+            console.log(`[evaluate] 선택자 1 (iframe 내): ${selector}`);
+            const element = iframeDoc.querySelector(selector);
             if (element) {
               likeElement = element as HTMLElement;
               console.log(`[evaluate] ✓ 정확한 선택자로 클릭 버튼 발견`);
@@ -871,46 +882,23 @@ class NaverBlogAutomation {
           // 전략 2: #area_sympathy{logNo} 범위 내에서 a 태그 찾기
           if (!likeElement && logNoParam) {
             const selector = `#area_sympathy${logNoParam} a`;
-            console.log(`[evaluate] 선택자 2: ${selector}`);
-            const element = document.querySelector(selector);
+            console.log(`[evaluate] 선택자 2 (iframe 내): ${selector}`);
+            const element = iframeDoc.querySelector(selector);
             if (element) {
               likeElement = element as HTMLElement;
               console.log(`[evaluate] ✓ #area_sympathy 범위 내 a 태그로 클릭 버튼 발견`);
             }
           }
 
-          // 전략 3: #printPost1 내의 좋아요 버튼
+          // 전략 3: "공감" 텍스트로 검색
           if (!likeElement) {
-            console.log('[evaluate] 선택자 3: #printPost1 내 좋아요 검색');
-            const printPost = document.querySelector('#printPost1');
-            if (printPost) {
-              const selectors = [
-                'td.bcc a',
-                'span.u_likeit_icons',
-                'a[aria-label*="좋아요"]',
-              ];
-
-              for (const sel of selectors) {
-                const el = printPost.querySelector(sel);
-                if (el) {
-                  likeElement = el as HTMLElement;
-                  console.log(`[evaluate] ✓ #printPost1 내 ${sel}로 클릭 버튼 발견`);
-                  break;
-                }
-              }
-            }
-          }
-
-          // 전략 4: "좋아요" 텍스트로 검색
-          if (!likeElement) {
-            console.log('[evaluate] 선택자 4: "좋아요" 텍스트 검색');
-            const allLinks = document.querySelectorAll('a');
+            console.log('[evaluate] 선택자 3: "공감" 텍스트 검색');
+            const allLinks = iframeDoc.querySelectorAll('a, button');
             for (const link of allLinks) {
               const text = link.textContent?.trim() || '';
-              const ariaLabel = link.getAttribute('aria-label') || '';
-              if (text.includes('좋아요') || ariaLabel.includes('좋아요')) {
-                likeElement = link;
-                console.log(`[evaluate] ✓ "좋아요" 텍스트로 클릭 버튼 발견`);
+              if (text.includes('공감')) {
+                likeElement = link as HTMLElement;
+                console.log(`[evaluate] ✓ "공감" 텍스트로 클릭 버튼 발견`);
                 break;
               }
             }
@@ -922,15 +910,17 @@ class NaverBlogAutomation {
           }
 
           try {
-            // 스크롤하여 버튼이 보이도록 함
+            // 버튼 정보 로깅
+            console.log('[evaluate] 클릭 전 상태:');
+            console.log('  - aria-pressed:', likeElement.getAttribute('aria-pressed'));
+            console.log('  - class:', likeElement.className);
+
+            // iframe 내에서는 scrollIntoView를 사용할 수 있음
             likeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             console.log('[evaluate] 버튼 스크롤 완료');
 
-            // 약간의 대기
-            setTimeout(() => {}, 500);
-
             // 클릭 실행
-            likeElement!.click();
+            likeElement.click();
             console.log('[evaluate] ✓ 좋아요 클릭 완료');
             return true;
           } catch (e) {
