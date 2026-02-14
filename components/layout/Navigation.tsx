@@ -2,12 +2,13 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, ChevronDown } from 'lucide-react';
 
 export default function Navigation() {
   const router = useRouter();
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(false);
+  const [isNeighborOpen, setIsNeighborOpen] = useState(false);
 
   const handleLogout = async () => {
     setIsLoading(true);
@@ -21,7 +22,7 @@ export default function Navigation() {
 
   const isGeneratePage = pathname === '/generate';
   const isFormatPage = pathname === '/format';
-  const isNeighborPage = pathname === '/neighbor';
+  const isNeighborPage = pathname.startsWith('/neighbor');
 
   return (
     <nav className="glass-effect border-b border-white/50 sticky top-0 z-50 shadow-md-soft">
@@ -58,17 +59,46 @@ export default function Navigation() {
                 <span>⚙️</span>
                 포맷 관리
               </button>
-              <button
-                onClick={() => router.push('/neighbor')}
-                className={`px-4 py-2 rounded-md font-medium smooth-transition flex items-center gap-2 ${
-                  isNeighborPage
-                    ? 'bg-white shadow-md-soft text-primary'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <span>🤝</span>
-                이웃 좋아요
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setIsNeighborOpen(!isNeighborOpen)}
+                  className={`px-4 py-2 rounded-md font-medium smooth-transition flex items-center gap-2 ${
+                    isNeighborPage
+                      ? 'bg-white shadow-md-soft text-primary'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <span>🤝</span>
+                  이웃 좋아요
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isNeighborOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* 드롭다운 메뉴 */}
+                {isNeighborOpen && (
+                  <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-48 z-50">
+                    <button
+                      onClick={() => {
+                        router.push('/neighbor');
+                        setIsNeighborOpen(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 smooth-transition"
+                    >
+                      <span>👍</span>
+                      홈 일괄 좋아요
+                    </button>
+                    <button
+                      onClick={() => {
+                        router.push('/neighbor/comment-and-like');
+                        setIsNeighborOpen(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 smooth-transition"
+                    >
+                      <span>💬</span>
+                      댓글+좋아요
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

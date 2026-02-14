@@ -52,7 +52,7 @@ export interface NeighborPostLikeResult {
   }>;
 }
 
-class NaverBlogAutomation {
+export class NaverBlogAutomation {
   private browser: any = null;
   private page: any = null;
   private isLoggedIn: boolean = false;
@@ -1248,6 +1248,649 @@ class NaverBlogAutomation {
   }
 
   /**
+   * 글 본문 추출 (iframe 내부에서)
+   */
+  async extractPostContent(postUrl: string): Promise<string | null> {
+    try {
+      await this.page.goto(postUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000,
+      });
+      await this.page.waitForTimeout(2000);
+
+      // iframe 내부에서 본문 추출
+      const content = await this.page.evaluate(() => {
+        const iframe = document.querySelector('iframe#mainFrame, iframe[id*="mainFrame"]') as HTMLIFrameElement;
+        const iframeDoc = iframe?.contentDocument;
+        if (!iframeDoc) {
+          console.log('[evaluate] iframe을 찾을 수 없습니다');
+          return null;
+        }
+
+        // 본문 추출 (3단계 폴백)
+        let text = null;
+        const selectors = [
+          '.se-main-container',
+          '.se_component_wrap',
+          '.post-view',
+          '#postViewArea',
+        ];
+
+        for (const selector of selectors) {
+          const element = iframeDoc.querySelector(selector) as HTMLElement;
+          if (element) {
+            text = element.innerText || element.textContent;
+            if (text && text.length > 100) {
+              console.log(`[evaluate] 본문 추출 성공: ${selector}`);
+              break;
+            }
+          }
+        }
+
+        return text ? text.slice(0, 1000) : null; // 최대 1000자
+      });
+
+      return content;
+    } catch (error) {
+      console.error('[Playwright] 본문 추출 실패:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 댓글 제출
+   */
+  /**
+   * 댓글 제출
+   * 구조:
+   * 1. iframe 내부의 .area_comment 버튼 클릭
+   * 2. naverComment 컨테이너 나타남
+   * 3. textarea에 댓글 입력
+   * 4. 제출 버튼 클릭
+   */
+  async submitComment(postUrl: string, commentText: string): Promise<boolean> {
+    try {
+      console.log(`\n[Playwright] 글 페이지 이동: ${postUrl.substring(0, 70)}...`);
+      await this.page.goto(postUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000,
+      });
+      await this.page.waitForTimeout(2000);
+
+      console.log('[Playwright] Step 1: iframe 내부 댓글 버튼 클릭');
+      const btnClicked = await this.page.evaluate(() => {
+        const iframe = document.querySelector('iframe#mainFrame') as HTMLIFrameElement;
+        const iframeDoc = iframe?.contentDocument;
+        if (!iframeDoc) {
+          console.log('[evaluate] iframe을 찾을 수 없습니다');
+          return false;
+        }
+
+        // .area_comment 버튼 찾기 (댓글 영역)
+        const commentArea = iframeDoc.querySelector('.area_comment');
+        if (!commentArea) {
+          console.log('[evaluate] .area_comment를 찾을 수 없습니다');
+          return false;
+        }
+
+        // 클릭 가능한 요소 찾기 (a, button, div 등)
+        const clickable = commentArea.querySelector('a, button, [onclick]') || commentArea;
+        console.log(`[evaluate] 클릭할 요소: ${(clickable as HTMLElement).tagName}`);
+
+        try {
+          (clickable as HTMLElement).click();
+          console.log('[evaluate] 댓글 버튼 클릭 완료');
+          return true;
+        } catch (e) {
+          console.log('[evaluate] 클릭 실패:', e);
+          return false;
+        }
+      });
+
+      if (!btnClicked) {
+        console.log('❌ 댓글 버튼 클릭 실패');
+        return false;
+      }
+
+      // 2단계: naverComment 컨테이너 대기 (최대 5초, iframe 내부 + 메인 페이지)
+      // CRITICAL: STYLE 태그가 아닌 실제 DIV 컨테이너를 찾아야 함 (u_cbox 클래스 포함)
+      console.log('[Playwright] Step 2: 댓글 입력 UI 대기 중... (최대 5초, iframe 검색 포함)');
+      let naverCommentReady = false;
+      for (let i = 0; i < 50; i++) {
+        await this.page.waitForTimeout(100);
+
+        const checkResult = await this.page.evaluate(() => {
+          // iframe 내부 먼저 확인 (우선순위)
+          const iframe = document.querySelector('iframe#mainFrame') as HTMLIFrameElement;
+          const iframeDoc = iframe?.contentDocument;
+
+          if (iframeDoc) {
+            // ✓ 수정: div[id*="naverComment"] AND class*="u_cbox"만 매칭
+            // (STYLE 태그나 다른 요소 제외)
+            const container = iframeDoc.querySelector('div[id*="naverComment"][class*="u_cbox"]');
+            if (container) {
+              console.log(`[evaluate] ✓ iframe 내부에서 실제 컨테이너 발견: ${(container as any).id}`);
+              return { found: true, location: 'iframe', id: (container as any).id, tag: container.tagName };
+            }
+
+            // 폴백: 더 넓은 검색 (모든 naverComment div)
+            const allContainers = iframeDoc.querySelectorAll('div[id*="naverComment"]');
+            if (allContainers.length > 0) {
+              console.log(`[evaluate] iframe에서 ${allContainers.length}개 div[id*="naverComment"] 발견 (u_cbox 클래스 확인)`);
+              for (const el of Array.from(allContainers)) {
+                const hasUcbox = (el as any).className?.includes('u_cbox');
+                console.log(`[evaluate]   - ${(el as any).id}: u_cbox=${hasUcbox}`);
+              }
+            }
+          }
+
+          // 메인 페이지 확인
+          const container = document.querySelector('div[id*="naverComment"][class*="u_cbox"]');
+          if (container) {
+            console.log(`[evaluate] ✓ 메인 페이지에서 실제 컨테이너 발견: ${(container as any).id}`);
+            return { found: true, location: 'mainPage', id: (container as any).id, tag: container.tagName };
+          }
+
+          return { found: false, location: '', id: '', tag: '' };
+        });
+
+        if (checkResult.found) {
+          naverCommentReady = true;
+          console.log(`[Playwright] ✓ 댓글 입력창 준비됨 (위치: ${checkResult.location}, ID: ${checkResult.id}, 태그: ${checkResult.tag})`);
+          break;
+        }
+
+        if (i === 49) {
+          // 마지막 시도일 때 더 상세한 정보 출력
+          const debugInfo = await this.page.evaluate(() => {
+            const iframe = document.querySelector('iframe#mainFrame') as HTMLIFrameElement;
+            const iframeDoc = iframe?.contentDocument;
+
+            const iframeContainers = iframeDoc?.querySelectorAll('[id*="naverComment"]');
+            const mainContainers = document.querySelectorAll('[id*="naverComment"]');
+
+            return {
+              mainPageCount: mainContainers.length,
+              mainPageIds: Array.from(mainContainers).map((el: any) => ({ id: el.id, tag: el.tagName })),
+              iframeCount: iframeContainers?.length || 0,
+              iframeIds: Array.from(iframeContainers || []).map((el: any) => ({ id: el.id, tag: el.tagName })),
+            };
+          });
+          console.log('[Playwright] ❌ 댓글 입력창 시간 초과 - 상세 디버그:');
+          console.log(JSON.stringify(debugInfo, null, 2));
+        }
+      }
+
+      if (!naverCommentReady) {
+        console.log('❌ 댓글 입력창 시간 초과 (실제 u_cbox 컨테이너를 찾을 수 없음)');
+        return false;
+      }
+
+      // 3단계: contenteditable div 찾고 텍스트 입력 (iframe 내부 검색 필수!)
+      console.log(`[Playwright] Step 3: 댓글 입력 중... (텍스트: "${commentText}")`);
+      const inputResult = await this.page.evaluate((comment: string) => {
+        const iframe = document.querySelector('iframe#mainFrame') as HTMLIFrameElement;
+        const iframeDoc = iframe?.contentDocument;
+
+        // 1단계: iframe 내부에서 검색
+        if (iframeDoc) {
+          // Method 1: ID 기반 검색
+          const editableDiv = iframeDoc.querySelector('[id*="naverComment"][id*="write_textarea"]') as HTMLDivElement;
+          if (editableDiv && editableDiv.contentEditable === 'true') {
+            editableDiv.focus();
+            editableDiv.textContent = comment;
+            editableDiv.dispatchEvent(new Event('input', { bubbles: true }));
+            editableDiv.dispatchEvent(new Event('change', { bubbles: true }));
+            editableDiv.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+            return {
+              success: true,
+              location: 'iframe/id-selector',
+              divId: editableDiv.id,
+              textContent: editableDiv.textContent
+            };
+          }
+
+          // Method 2: u_cbox_write_area 내부의 contenteditable div 검색
+          const container = iframeDoc.querySelector('div[id*="naverComment"][class*="u_cbox"]');
+          if (container) {
+            const writeArea = container.querySelector('.u_cbox_write_area');
+            if (writeArea) {
+              const editableDivs = writeArea.querySelectorAll('div[contenteditable="true"]');
+              console.log(`[evaluate] u_cbox_write_area 내부 contenteditable div: ${editableDivs.length}개`);
+              if (editableDivs.length > 0) {
+                const div = editableDivs[0] as HTMLDivElement;
+                div.focus();
+                div.textContent = comment;
+                div.dispatchEvent(new Event('input', { bubbles: true }));
+                div.dispatchEvent(new Event('change', { bubbles: true }));
+                div.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+                return {
+                  success: true,
+                  location: 'iframe/write-area-search',
+                  divId: (div as any).id,
+                  textContent: div.textContent
+                };
+              }
+            }
+          }
+
+          // Method 3: 모든 contenteditable div 검색 (더 넓은 범위)
+          const editableDivs = iframeDoc.querySelectorAll('div[contenteditable="true"]');
+          console.log(`[evaluate] iframe 전체 contenteditable div: ${editableDivs.length}개`);
+          for (const div of Array.from(editableDivs)) {
+            const parent = div.closest('[id*="naverComment"]');
+            if (parent) {
+              console.log(`[evaluate] ✓ naverComment 내부 contenteditable div 발견: ${(div as any).id}`);
+              (div as HTMLDivElement).focus();
+              (div as HTMLDivElement).textContent = comment;
+              (div as HTMLDivElement).dispatchEvent(new Event('input', { bubbles: true }));
+              (div as HTMLDivElement).dispatchEvent(new Event('change', { bubbles: true }));
+              (div as HTMLDivElement).dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+              return {
+                success: true,
+                location: 'iframe/fallback-search',
+                divId: (div as any).id,
+                textContent: (div as HTMLDivElement).textContent
+              };
+            }
+          }
+        }
+
+        // 2단계: 메인 페이지에서 검색
+        const editableDiv = document.querySelector('[id*="naverComment"][id*="write_textarea"]') as HTMLDivElement;
+        if (editableDiv && editableDiv.contentEditable === 'true') {
+          editableDiv.focus();
+          editableDiv.textContent = comment;
+          editableDiv.dispatchEvent(new Event('input', { bubbles: true }));
+          editableDiv.dispatchEvent(new Event('change', { bubbles: true }));
+          editableDiv.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+          return {
+            success: true,
+            location: 'mainPage/id-selector',
+            divId: editableDiv.id,
+            textContent: editableDiv.textContent
+          };
+        }
+
+        const editableDivs = document.querySelectorAll('div[contenteditable="true"]');
+        for (const div of Array.from(editableDivs)) {
+          const parent = div.closest('[id*="naverComment"]');
+          if (parent) {
+            (div as HTMLDivElement).focus();
+            (div as HTMLDivElement).textContent = comment;
+            (div as HTMLDivElement).dispatchEvent(new Event('input', { bubbles: true }));
+            (div as HTMLDivElement).dispatchEvent(new Event('change', { bubbles: true }));
+            (div as HTMLDivElement).dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+            return {
+              success: true,
+              location: 'mainPage/fallback-search',
+              divId: (div as any).id,
+              textContent: (div as HTMLDivElement).textContent
+            };
+          }
+        }
+
+        // 최종 디버그: 구조 분석
+        const debugInfo = {
+          iframe: !!iframeDoc,
+          containers: iframeDoc?.querySelectorAll('[id*="naverComment"]').length || 0,
+          writeAreas: iframeDoc?.querySelectorAll('.u_cbox_write_area').length || 0,
+          editableDivs: iframeDoc?.querySelectorAll('div[contenteditable="true"]').length || 0,
+        };
+        console.log(`[evaluate] 입력 필드 미발견 - 디버그:`, JSON.stringify(debugInfo));
+
+        return { success: false, location: '', reason: '입력 필드를 찾을 수 없습니다', divId: '' };
+      }, commentText);
+
+      console.log(`[Playwright] Step 3 결과: ${JSON.stringify(inputResult)}`);
+
+      if (!inputResult.success) {
+        console.log(`❌ 댓글 입력 실패: ${inputResult.reason}`);
+        return false;
+      }
+
+      console.log(`✓ 댓글 입력 성공 (위치: ${inputResult.location}, 텍스트: "${inputResult.textContent}")`)
+
+      await this.page.waitForTimeout(500);
+
+      // 4단계: 제출 버튼 클릭 (iframe 내부 검색 필수!)
+      // CRITICAL: 스티커 버튼이 아닌 등록 버튼을 정확히 찾아야 함
+      console.log('[Playwright] Step 4: 댓글 제출 중... (등록 버튼 찾기, 스티커 제외)');
+      const submitSuccess = await this.page.evaluate(() => {
+        let submitBtn: HTMLButtonElement | null = null;
+
+        // 1단계: iframe 내부에서 제출 버튼 찾기
+        const iframe = document.querySelector('iframe#mainFrame') as HTMLIFrameElement;
+        const iframeDoc = iframe?.contentDocument;
+
+        if (iframeDoc) {
+          const buttons = iframeDoc.querySelectorAll('button');
+          console.log(`[evaluate] iframe 내부 button 개수: ${buttons.length}`);
+
+          // Strategy 1: 텍스트 "등록"으로 찾기
+          for (const btn of Array.from(buttons)) {
+            const text = btn.textContent?.trim() || '';
+            const className = btn.className || '';
+            const parent = btn.closest('[id*="naverComment"]');
+
+            // "등록" 텍스트 + naverComment 포함 + sticker 미포함
+            if (parent && text === '등록' && !className.includes('sticker')) {
+              console.log(`[evaluate] ✓ "등록" 텍스트로 발견: class="${className}"`);
+              submitBtn = btn as HTMLButtonElement;
+              break;
+            }
+          }
+
+          // Strategy 2: u_cbox_upload 영역의 마지막 button (스티커가 아닌)
+          if (!submitBtn) {
+            const container = iframeDoc.querySelector('div[id*="naverComment"][class*="u_cbox"]');
+            if (container) {
+              const uploadArea = container.querySelector('.u_cbox_upload');
+              if (uploadArea) {
+                const uploadButtons = uploadArea.querySelectorAll('button');
+                console.log(`[evaluate] .u_cbox_upload 내부 button: ${uploadButtons.length}개`);
+
+                // 역순으로 탐색 (마지막 버튼이 등록 버튼일 가능성 높음)
+                for (let i = uploadButtons.length - 1; i >= 0; i--) {
+                  const btn = uploadButtons[i];
+                  const className = btn.className || '';
+
+                  // sticker가 아니면 등록 버튼으로 간주
+                  if (!className.includes('sticker')) {
+                    console.log(`[evaluate] ✓ .u_cbox_upload 마지막 비-스티커 버튼: class="${className}"`);
+                    submitBtn = btn as HTMLButtonElement;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+
+          // Strategy 3: u_cbox_btn_upload 클래스 (sticker 제외)
+          if (!submitBtn) {
+            const buttons = iframeDoc.querySelectorAll('button.u_cbox_btn_upload:not(.sticker)');
+            if (buttons.length > 0) {
+              // 마지막 버튼 선택
+              submitBtn = buttons[buttons.length - 1] as HTMLButtonElement;
+              console.log(`[evaluate] ✓ u_cbox_btn_upload:not(.sticker) 선택`);
+            }
+          }
+        }
+
+        // 2단계: 메인 페이지에서 제출 버튼 찾기 (호환성)
+        if (!submitBtn) {
+          const buttons = document.querySelectorAll('button');
+          console.log(`[evaluate] 메인 페이지 button 개수: ${buttons.length}`);
+
+          // 같은 전략 적용
+          for (const btn of Array.from(buttons)) {
+            const text = btn.textContent?.trim() || '';
+            const className = btn.className || '';
+            const parent = btn.closest('[id*="naverComment"]');
+
+            if (parent && text === '등록' && !className.includes('sticker')) {
+              console.log(`[evaluate] ✓ 메인 페이지 "등록" 텍스트로 발견`);
+              submitBtn = btn as HTMLButtonElement;
+              break;
+            }
+          }
+
+          if (!submitBtn) {
+            const buttons = document.querySelectorAll('button.u_cbox_btn_upload:not(.sticker)');
+            if (buttons.length > 0) {
+              submitBtn = buttons[buttons.length - 1] as HTMLButtonElement;
+              console.log(`[evaluate] ✓ 메인 페이지 u_cbox_btn_upload:not(.sticker) 선택`);
+            }
+          }
+        }
+
+        if (!submitBtn) {
+          console.log('[evaluate] ❌ 제출 버튼을 찾을 수 없습니다 (모든 전략 실패)');
+          return false;
+        }
+
+        try {
+          console.log(`[evaluate] 제출 버튼 클릭: class="${submitBtn.className}", text="${submitBtn.textContent?.trim()}"`);
+          submitBtn.click();
+          console.log('[evaluate] ✓ 댓글 제출 버튼 클릭 완료');
+          return true;
+        } catch (e) {
+          console.log('[evaluate] ❌ 제출 버튼 클릭 실패:', e);
+          return false;
+        }
+      });
+
+      if (!submitSuccess) {
+        console.log('❌ 댓글 제출 버튼 클릭 실패');
+        return false;
+      }
+
+      // 제출 완료 대기
+      await this.page.waitForTimeout(2000);
+
+      console.log('✅ 댓글 제출 완료\n');
+      return true;
+    } catch (error) {
+      console.error('[Playwright] 댓글 제출 오류:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 이웃새글에 자동으로 댓글과 좋아요 달기
+   */
+  async autoCommentAndLikeNeighborPosts(
+    blogId: string,
+    blogPassword: string,
+    maxPosts: number = 10,
+    minInterval: number = 3
+  ): Promise<any> {
+    const result: any = {
+      success: true,
+      totalProcessed: 0,
+      totalCommented: 0,
+      totalLiked: 0,
+      totalSkipped: 0,
+      startedAt: new Date().toISOString(),
+      completedAt: '',
+      details: [],
+    };
+
+    try {
+      // 1. 로그인 (한 번만)
+      console.log('[Playwright] 로그인 시작...');
+      await this.login(blogId, blogPassword);
+
+      // 2. 이웃새글 메인 페이지로 이동 (BlogHome)
+      const neighborUrl = 'https://section.blog.naver.com/BlogHome.naver?directoryNo=0&currentPage=1&groupId=0';
+      console.log(`[Playwright] 이웃새글 홈으로 이동: ${neighborUrl}`);
+      await this.page.goto(neighborUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000,
+      });
+      await this.page.waitForTimeout(3000);
+
+      let processedCount = 0;
+      let currentPage = 1;
+
+      while (processedCount < maxPosts && currentPage <= 100) {
+        console.log(`\n[Playwright] 페이지 ${currentPage} 처리 중...`);
+
+        // 이웃새글 목록 구조에서 글 정보 추출 (좋아요 상태 포함)
+        const pageResults = await this.page.evaluate(() => {
+          const articles: Array<{ title: string; url: string; hasLike: boolean }> = [];
+
+          // 사용자가 제시한 정확한 선택자:
+          // #content > section > div.list_post_article.list_post_article_comments > div > div > div.info_post > div.desc > a.desc_inner
+          const linkElements = document.querySelectorAll(
+            '#content > section > div.list_post_article.list_post_article_comments a.desc_inner'
+          );
+
+          console.log(`[evaluate] 발견된 글 링크: ${linkElements.length}개`);
+
+          linkElements.forEach((linkElement, idx) => {
+            const anchor = linkElement as HTMLAnchorElement;
+
+            if (!anchor.href) {
+              console.log(`[evaluate] [${idx}] href가 없습니다`);
+              return;
+            }
+
+            // 글 제목: 링크의 텍스트 또는 title 속성
+            const title = anchor.textContent?.trim() || anchor.getAttribute('title') || `[제목 없음 #${idx + 1}]`;
+            const url = anchor.href;
+
+            // 좋아요 상태 확인: 글 항목의 부모 요소에서 좋아요 버튼 찾기
+            let hasLike = false;
+            const articleItem = anchor.closest('.list_post_article');
+            if (articleItem) {
+              // 좋아요 버튼 찾기 (aria-pressed="true" 또는 u_likeit_on 클래스)
+              const likeBtn = articleItem.querySelector('button[aria-pressed="true"], button.u_likeit_on');
+              hasLike = !!likeBtn;
+            }
+
+            console.log(`[evaluate] [${idx}] 제목: "${title}"`);
+            console.log(`[evaluate]     URL: ${url.substring(0, 80)}...`);
+            console.log(`[evaluate]     좋아요: ${hasLike ? '✓' : '✗'}`);
+
+            articles.push({
+              title,
+              url,
+              hasLike,
+            });
+          });
+
+          return articles;
+        });
+
+        console.log(`[Playwright] 발견된 글: ${pageResults.length}개`);
+
+        for (let i = 0; i < pageResults.length; i++) {
+          if (processedCount >= maxPosts) break;
+
+          const article = pageResults[i];
+          const { title, url, hasLike } = article;
+
+          try {
+            console.log(`\n[Playwright] [${processedCount + 1}] ${title}`);
+            console.log(`[Playwright] URL: ${url}`);
+            console.log(`[Playwright] 좋아요 상태: ${hasLike ? '✓ 누름 (건너뛰기)' : '✗ 미누름 (처리)'}`);
+
+            // CRITICAL: 좋아요가 이미 눌려있으면 이전에 댓글이 달아진 것으로 판단 → 건너뛰기
+            if (hasLike) {
+              result.totalSkipped++;
+              result.details.push({
+                title,
+                url,
+                liked: true,
+                commented: false,
+                reason: '이미 좋아요가 눌려있음 (전에 댓글이 달아짐)',
+              });
+              console.log(`⏭️  이미 좋아요가 눌려있으므로 건너뛰기`);
+              continue;
+            }
+
+            // 본문 추출
+            console.log(`📖 본문 추출 중...`);
+            const content = await this.extractPostContent(url);
+            if (!content || content.length < 100) {
+              result.totalSkipped++;
+              result.details.push({
+                title,
+                url,
+                liked: false,
+                commented: false,
+                reason: '본문이 너무 짧거나 없음',
+              });
+              console.log(`❌ 본문 추출 실패`);
+              continue;
+            }
+
+            console.log(`✓ 본문 추출 완료 (${content.length}자)`);
+
+            // 댓글 생성 (OpenAI API 호출)
+            console.log(`🤖 댓글 생성 중...`);
+            const { generateComment } = await import('@/lib/openai/comment-generator');
+            const comment = await generateComment(content, title);
+            console.log(`✓ 생성된 댓글: "${comment}"`);
+
+            // 댓글 제출
+            console.log(`💬 댓글 제출 중...`);
+            const commentSuccess = await this.submitComment(url, comment);
+            console.log(`${commentSuccess ? '✓ 댓글 제출 완료' : '❌ 댓글 제출 실패'}`);
+
+            // 좋아요 누르기
+            console.log(`👍 좋아요 누르는 중...`);
+            const likeSuccess = await this.toggleLike(url);
+            console.log(`${likeSuccess ? '✓ 좋아요 완료' : '❌ 좋아요 실패 (오류)'}`);
+
+            result.totalProcessed++;
+            processedCount++;
+
+            if (commentSuccess) {
+              result.totalCommented++;
+            }
+
+            if (likeSuccess) {
+              result.totalLiked++;
+            }
+
+            result.details.push({
+              title,
+              url,
+              liked: likeSuccess,
+              commented: commentSuccess,
+              comment: commentSuccess ? comment : undefined,
+            });
+
+            console.log(
+              `✅ [${processedCount}/${maxPosts}] 완료 (댓글: ${commentSuccess ? '✓' : '✗'}, 좋아요: ${likeSuccess ? '✓' : '✗'})`
+            );
+
+            // 다음 글 처리 전 3~4분 대기 (스팸 방지)
+            if (processedCount < maxPosts) {
+              const waitTime = minInterval * 60 * 1000 + Math.random() * 60000;
+              console.log(`⏳ ${Math.round(waitTime / 1000)}초 대기 중...`);
+              await this.page.waitForTimeout(waitTime);
+            }
+          } catch (err) {
+            console.error('[Playwright] 글 처리 중 오류:', err);
+            result.details.push({
+              title: '알 수 없음',
+              url: '',
+              liked: false,
+              commented: false,
+              reason: err instanceof Error ? err.message : '알 수 없는 오류',
+            });
+          }
+        }
+
+        // 다음 페이지로
+        if (processedCount < maxPosts && pageResults.length > 0) {
+          currentPage++;
+          const nextPageUrl = `https://section.blog.naver.com/BlogHome.naver?directoryNo=0&currentPage=${currentPage}&groupId=0`;
+          console.log(`\n[Playwright] 다음 페이지로 이동: currentPage=${currentPage}`);
+          await this.page.goto(nextPageUrl, {
+            waitUntil: 'domcontentloaded',
+            timeout: 30000,
+          });
+          await this.page.waitForTimeout(2000);
+        } else {
+          break;
+        }
+      }
+    } catch (err) {
+      result.success = false;
+      result.error = err instanceof Error ? err.message : '알 수 없는 오류';
+    } finally {
+      result.completedAt = new Date().toISOString();
+      await this.close();
+    }
+
+    return result;
+  }
+
+  /**
    * 브라우저 종료
    */
   async close(): Promise<void> {
@@ -1411,3 +2054,5 @@ export async function processNeighborAutoLike(
     await automation.close();
   }
 }
+
+export default NaverBlogAutomation;

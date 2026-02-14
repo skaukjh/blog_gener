@@ -72,15 +72,33 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
     );
     await page.waitForTimeout(2000);
 
-    // 페이지별 처리
+    // 페이지별 처리 (URL의 currentPage 파라미터로 직접 제어)
     const startTime = new Date();
     let currentPageNum = 1;
     let totalProcessed = 0;
     let totalLiked = 0;
     let hasNextPage = true;
 
-    while (hasNextPage && currentPageNum <= 10) {
+    while (hasNextPage && currentPageNum <= 100) {
       console.log(`\n========== 페이지 ${currentPageNum} 처리 ==========`);
+
+      // URL의 currentPage 파라미터를 증가시키면서 직접 이동
+      const pageUrl = `https://section.blog.naver.com/BlogHome.naver?directoryNo=0&currentPage=${currentPageNum}&groupId=0`;
+      console.log(`[이동] ${pageUrl}`);
+
+      try {
+        await page.goto(pageUrl, {
+          waitUntil: 'domcontentloaded',
+          timeout: 20000,
+        });
+
+        // 페이지 로드 완료 대기
+        await page.waitForTimeout(1500);
+      } catch (err) {
+        console.log(`[오류] 페이지 로드 실패: ${err}`);
+        hasNextPage = false;
+        break;
+      }
 
       // 좋아요 버튼 모두 찾기
       const likeButtonLocators = await page.locator('a.u_likeit_button._face').all();
@@ -100,28 +118,50 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
           const ariaPressed = await buttonLocator.getAttribute('aria-pressed');
           const isAlreadyLiked = ariaPressed === 'true';
 
-          // 제목 추출 - 더 정교한 방법
+          // 제목 추출 - 페이지 전체 스냅샷으로 상태 조회
           let title = `글 #${i + 1}`;
 
           try {
-            // 방법 1: 가장 가까운 article 또는 div[class*="item"] 찾기
-            const itemContainer = await buttonLocator.locator('xpath=ancestor::article | ancestor::div[contains(@class, "item")] | ancestor::div[contains(@class, "post")] | ancestor::li').first();
+            // 방법 1: 버튼의 부모 요소들을 따라올라가면서 제목 찾기
+            let currentElement = buttonLocator;
+            let attempts = 0;
+            const maxAttempts = 10;
 
-            // 방법 2: strong 태그 찾기 (제목이 보통 strong 안에)
-            const titleElement = await itemContainer.locator('strong').first();
-            const titleText = await titleElement.textContent();
+            while (attempts < maxAttempts) {
+              try {
+                // 현재 요소에서 strong 찾기 (제목)
+                const titleElement = await currentElement.locator('strong').first();
+                const titleText = await titleElement.textContent();
 
-            if (titleText && titleText.trim().length > 0 && titleText.trim().length < 150) {
-              title = titleText.trim();
-            } else {
-              // 방법 3: a 태그의 텍스트 사용 (제목 링크)
-              const linkText = await itemContainer.locator('a').first().textContent();
-              if (linkText && linkText.trim().length > 0 && linkText.trim().length < 150) {
-                title = linkText.trim();
+                if (titleText && titleText.trim().length > 2 && titleText.trim().length < 150) {
+                  title = titleText.trim();
+                  break;
+                }
+
+                // 부모로 이동
+                currentElement = currentElement.locator('..');
+                attempts++;
+              } catch (e) {
+                break;
+              }
+            }
+
+            // 방법 2: strong으로 못 찾으면 a 태그 찾기
+            if (title === `글 #${i + 1}`) {
+              try {
+                const linkElement = await buttonLocator.locator('xpath=ancestor::article//a[1] | ancestor::li//a[1] | ancestor::div[@class*="item"]//a[1]').first();
+                const linkText = await linkElement.textContent();
+
+                if (linkText && linkText.trim().length > 2 && linkText.trim().length < 150) {
+                  title = linkText.trim();
+                }
+              } catch (e) {
+                // 계속 진행
               }
             }
           } catch (e) {
             // 에러 무시, 기본값 사용
+            console.log(`제목 추출 오류 [${i + 1}]:`, (e as Error).message);
           }
 
           totalProcessed++;
@@ -175,64 +215,13 @@ async function autoLikeNeighborPostsWithPlaywright(blogId: string, blogPassword:
         }
       }
 
-      // 다음 페이지 찾기 (AngularJS 기반 페이지네이션)
-      console.log(`\n[Page ${currentPageNum}] 다음 페이지 확인 중...`);
+      // 다음 페이지로 이동할 준비 (currentPage 파라미터 증가)
+      console.log(`\n[Page ${currentPageNum}] 다음 페이지로 이동 준비...`);
 
-      try {
-        // 현재 페이지 찾기: aria-current="page" 속성
-        const currentPageLink = page.locator('a.item[aria-current="page"]').first();
-        const currentPageText = await currentPageLink.locator('strong').textContent();
-        console.log(`현재 페이지: ${currentPageText}`);
-
-        // 모든 페이지 링크 찾기
-        const allPageLinks = await page.locator('a.item[aria-label*="페이지"]').all();
-        console.log(`찾은 페이지 링크: ${allPageLinks.length}개`);
-
-        let nextPageFound = false;
-
-        // 현재 페이지보다 번호가 큰 첫 번째 페이지 찾기
-        for (const pageLink of allPageLinks) {
-          const ariaLabel = await pageLink.getAttribute('aria-label');
-          console.log(`페이지 링크: ${ariaLabel}`);
-
-          // "다음" 버튼이나 다음 페이지 확인
-          if (ariaLabel && (ariaLabel.includes('다음') || ariaLabel.includes('Next'))) {
-            const isCurrent = await pageLink.getAttribute('aria-current');
-            if (isCurrent !== 'page') {
-              // 다음 페이지로 이동
-              await pageLink.click();
-              console.log(`[Page ${currentPageNum}] 다음 페이지로 이동...`);
-              await page.waitForTimeout(2000);
-              currentPageNum++;
-              nextPageFound = true;
-              break;
-            }
-          }
-        }
-
-        if (!nextPageFound) {
-          // "다음" 텍스트가 있는 버튼 찾기
-          const nextBtn = page.locator('a:has-text("다음")').first();
-          const nextBtnVisible = await nextBtn.isVisible().catch(() => false);
-          const nextBtnDisabled = await nextBtn.getAttribute('aria-disabled').catch(() => 'true');
-
-          if (nextBtnVisible && nextBtnDisabled !== 'true') {
-            await nextBtn.click();
-            console.log(`[Page ${currentPageNum}] "다음" 버튼 클릭`);
-            await page.waitForTimeout(2000);
-            currentPageNum++;
-            nextPageFound = true;
-          }
-        }
-
-        if (!nextPageFound) {
-          console.log('[종료] 더 이상 페이지가 없습니다');
-          hasNextPage = false;
-        }
-      } catch (err) {
-        console.log(`[Page ${currentPageNum}] 페이지 이동 오류: ${err}`);
-        hasNextPage = false;
-      }
+      // 다음 페이지 로드를 위해 currentPageNum 증가
+      // 만약 다음 페이지에 좋아요 버튼이 없으면 루프가 종료됨
+      currentPageNum++;
+      console.log(`[진행] 페이지 ${currentPageNum}로 이동 예정...`);
     }
 
     const endTime = new Date();

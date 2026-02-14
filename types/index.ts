@@ -349,6 +349,46 @@ export interface NeighborLikeResponse {
   message?: string;
 }
 
+// 네이버 블로그 이웃 댓글+좋아요 관련 타입
+export interface CommentGenerationRequest {
+  postContent: string;
+  postTitle: string;
+}
+
+export interface CommentGenerationResponse {
+  success: boolean;
+  comment: string;
+  error?: string;
+}
+
+export interface NeighborCommentRequest {
+  blogId: string;
+  blogPassword: string;
+  maxPosts?: number;
+  minInterval?: number;
+}
+
+export interface NeighborCommentDetail {
+  title: string;
+  url: string;
+  liked: boolean;
+  commented: boolean;
+  comment?: string;
+  reason?: string;
+}
+
+export interface NeighborCommentResult {
+  success: boolean;
+  totalProcessed: number;
+  totalCommented: number;
+  totalLiked: number;
+  totalSkipped: number;
+  startedAt: string;
+  completedAt: string;
+  details: NeighborCommentDetail[];
+  error?: string;
+}
+
 // Supabase 관련 타입 (추후 추가 예정)
 // export interface SupabaseUser { ... }
 // export interface SupabaseToken { ... }
