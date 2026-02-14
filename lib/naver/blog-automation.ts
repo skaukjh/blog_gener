@@ -519,24 +519,31 @@ class NaverBlogAutomation {
       cutoffDate.setDate(cutoffDate.getDate() - daysLimit);
       console.log(`[Playwright] 날짜 필터: ${cutoffDate.toLocaleDateString('ko-KR')} 이후`);
 
-      // 글 정보 추출 (날짜 포함)
+      // 글 정보 추출 (실제 글 URL 추출 우선)
       const posts = await this.page.evaluate(() => {
         const items: BlogPostInfo[] = [];
 
-        // 테이블 기반 글 목록 (새 블로그)
+        // 방법 1: 테이블 기반 글 목록 (PrologueList 페이지)
         const postRows = document.querySelectorAll('table tr');
         console.log(`[evaluate] 테이블 행: ${postRows.length}`);
 
         postRows.forEach((row) => {
-          const titleCell = row.querySelector('td:first-child a, a[class*="title"]');
+          const titleCell = row.querySelector('td:first-child a, a[class*="title"]') as HTMLAnchorElement;
           const dateCell = row.querySelector('td:last-child, [class*="date"]');
 
-          if (titleCell && dateCell) {
-            const url = titleCell.getAttribute('href') || '';
+          if (titleCell) {
+            let url = titleCell.href || '';
             const title = titleCell.textContent?.trim() || '';
-            const date = dateCell.textContent?.trim() || '';
+            const date = dateCell?.textContent?.trim() || '';
 
-            if (url && title && /\/blog\.naver\.com|PostView|entry\.naver/.test(url)) {
+            // 상대 경로 처리
+            if (url && !url.startsWith('http')) {
+              url = 'https://blog.naver.com' + url;
+            }
+
+            // 실제 글 URL인지 확인
+            const logNoMatch = url.match(/logNo=(\d+)|\/(\d+)$/);
+            if (title && logNoMatch) {
               items.push({
                 title,
                 url,
@@ -547,22 +554,23 @@ class NaverBlogAutomation {
           }
         });
 
-        // 테이블이 없으면 일반 링크 기반 검사
+        // 방법 2: logNo 기반 링크 검사 (PostView 패턴)
         if (items.length === 0) {
-          const allLinks = document.querySelectorAll('a');
+          const allLinks = document.querySelectorAll('a[href*="logNo"], a[href*="/blog.naver.com"]');
           const postMap = new Map<string, BlogPostInfo>();
 
-          console.log(`[evaluate] 일반 링크 검사: ${allLinks.length}개`);
+          console.log(`[evaluate] logNo 기반 링크 검사: ${allLinks.length}개`);
 
           allLinks.forEach((link) => {
-            const url = link.href || '';
+            const anchor = link as HTMLAnchorElement;
+            const url = anchor.href || '';
             const title = link.textContent?.trim() || '';
 
-            const isPostUrl = url.match(/\/blog\.naver\.com\/[a-zA-Z0-9_]+\/\d+/) ||
-                             url.match(/\/PostView\.naver\?/) ||
-                             url.match(/\/entry\.naver\?/);
+            // logNo가 있는 URL만 선택
+            const hasLogNo = /logNo=\d+|\/\d{9,}/.test(url);
+            const isValidUrl = /blog\.naver\.com|PostView/.test(url);
 
-            if (isPostUrl && title && title.length > 0 && !postMap.has(url)) {
+            if (hasLogNo && isValidUrl && title && title.length > 2 && !postMap.has(url)) {
               postMap.set(url, {
                 title,
                 url,
@@ -577,7 +585,7 @@ class NaverBlogAutomation {
           });
         }
 
-        console.log(`[evaluate] 발견된 글: ${items.length}개 (날짜 포함)`);
+        console.log(`[evaluate] 발견된 글: ${items.length}개`);
         return items;
       });
 
@@ -1107,24 +1115,18 @@ export async function processNeighborAutoLike(
               postDate = await automation.getPostDate(post.url);
             }
 
-            // 날짜 확인 (필터링)
+            // 날짜 확인 (로깅만 하고 필터링하지 않음 - 안정성 우선)
             if (postDate) {
               const isWithinDays = postDate >= cutoffDate;
-
-              if (!isWithinDays) {
-                console.log(
-                  `⏭️ [${neighbor.nickname}] 스킵 (과거 글): ${post.title} (${postDate.toLocaleDateString('ko-KR')})`
-                );
-                continue;
-              }
-
+              const withinText = isWithinDays ? '✓' : '⏭️ (7일 이상)';
               console.log(
-                `✓ [${neighbor.nickname}] 날짜 확인됨: ${post.title} (${postDate.toLocaleDateString('ko-KR')})`
+                `${withinText} [${neighbor.nickname}] ${post.title} (${postDate.toLocaleDateString('ko-KR')})`
               );
             } else {
-              console.warn(`⚠️ [${neighbor.nickname}] 날짜를 찾을 수 없어 처리 스킵: ${post.title}`);
-              continue;
+              console.log(`ℹ️ [${neighbor.nickname}] 날짜 정보 없음: ${post.title}`);
             }
+
+            // ⭐ 모든 글에 좋아요 시도 (날짜 관계없이)
 
             // 좋아요 누르기
             const liked = await automation.toggleLike(post.url);
