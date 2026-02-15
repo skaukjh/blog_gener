@@ -1,5 +1,5 @@
 import { WebSearchResult } from '@/types';
-import DOMPurify from 'dompurify';
+import DOMPurify from 'isomorphic-dompurify';
 
 /**
  * Phase 20: 웹 검색 통합

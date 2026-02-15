@@ -340,9 +340,16 @@ PRIORITY 3 - NATURAL, WARM TONE & AUTHENTICITY:
 - Vary sentence structure and openings
 - Include practical info and insider tips
 
-PRIORITY 4 - TECHNICAL REQUIREMENTS:
-- Use EXACTLY ${imageCount} image marker(s) - NO MORE, NO LESS
-- Place [IMAGE_N] markers at natural locations
+PRIORITY 4 - TECHNICAL REQUIREMENTS (STRICT MARKER RULES):
+🚫 MARKER RULES - DO NOT VIOLATE:
+- MANDATORY: Use EXACTLY ${imageCount} markers TOTAL - NO MORE, NO LESS
+- CRITICAL: Use markers [IMAGE_1] through [IMAGE_${imageCount}] ONLY
+- FORBIDDEN: Do NOT use markers beyond [IMAGE_${imageCount}]
+- FORBIDDEN: Do NOT repeat the same marker twice
+- Place [IMAGE_N] markers at natural, contextually relevant locations
+- Each marker needs 1-2 sentences of visual description before/after it
+- Space markers evenly throughout the post
+- VERIFICATION: Count all markers - must equal exactly ${imageCount}
 - Keywords must appear naturally, not forced
 - NO emojis or icons
 

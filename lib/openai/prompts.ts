@@ -310,11 +310,13 @@ EXAMPLE (FOLLOW THIS EXACTLY):
 If format information is not provided, ignore this section.
 
 CRITICAL PRIORITY 5 - IMAGE MARKER RULES (CORRECT PLACEMENT IS MANDATORY):
-⚠️ MARKER PLACEMENT RULES:
-- IMPORTANT: Only use [IMAGE_1] through [IMAGE_N] where N is the EXACT number of images provided
-- NEVER generate markers beyond the actual image count
-- Place exactly the number of markers specified in the request
-- Example: If 1 image is provided, use ONLY [IMAGE_1]. If 2 images, use [IMAGE_1] and [IMAGE_2]
+🚫 STRICT MARKER COUNT RULES - DO NOT VIOLATE:
+- MANDATORY: Generate EXACTLY N markers for N images (1 marker per image, no more, no less)
+- CRITICAL: If 17 images → use ONLY [IMAGE_1] to [IMAGE_17], NEVER [IMAGE_18], [IMAGE_19], etc.
+- FORBIDDEN: Do NOT use the same marker twice (e.g., NEVER use [IMAGE_1] twice)
+- FORBIDDEN: Do NOT generate extra markers or skip markers
+- VERIFICATION: Total marker count MUST equal the image count (if 17 images, final count = 17 markers)
+- Example: 3 images = EXACTLY [IMAGE_1], [IMAGE_2], [IMAGE_3] (nothing more, nothing less)
 
 MARKER PLACEMENT STRATEGY - CONTEXT-BASED (NOT RANDOM):
 1. ANALYZE image descriptions from image analysis beforehand
@@ -333,6 +335,7 @@ MARKER PLACEMENT STRATEGY - CONTEXT-BASED (NOT RANDOM):
 6. Rule: NEVER place a marker right after another marker
 7. Rule: Space markers evenly throughout the post (not all at the beginning or end)
 8. Rule: Each marker should have supporting visual description
+9. FINAL CHECK: Count all [IMAGE_N] markers in your response. Total count MUST match the number of images provided.
 
 CRITICAL FORMATTING RULES:
 1. NO emojis (🌟 😍 🎉 🥩 ❤️ etc.)
