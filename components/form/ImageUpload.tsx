@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useState, useRef, useMemo, useEffect } from 'react';
 import { validateImageFile } from '@/lib/utils/validation';
 import {
   DndContext,
@@ -32,7 +32,7 @@ interface SortableImageItemProps {
   onRemove: (index: number) => void;
 }
 
-function SortableImageItem({ image, index, onRemove }: SortableImageItemProps) {
+const SortableImageItem = React.memo(({ image, index, onRemove }: SortableImageItemProps) => {
   const {
     attributes,
     listeners,
@@ -40,6 +40,20 @@ function SortableImageItem({ image, index, onRemove }: SortableImageItemProps) {
     transform,
     transition,
   } = useSortable({ id: `image-${index}` });
+
+  // 이미지 URL을 메모이제이션하여 변경 시에만 새로 생성
+  const imageUrl = useMemo(() => URL.createObjectURL(image), [image]);
+
+  // 정리: 컴포넌트 언마운트 또는 이미지 변경 시 URL 해제
+  useEffect(() => {
+    return () => {
+      try {
+        URL.revokeObjectURL(imageUrl);
+      } catch (e) {
+        // 이미 해제된 URL일 수 있음
+      }
+    };
+  }, [imageUrl]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -55,7 +69,7 @@ function SortableImageItem({ image, index, onRemove }: SortableImageItemProps) {
       className="relative group"
     >
       <img
-        src={URL.createObjectURL(image)}
+        src={imageUrl}
         alt={`이미지 ${index + 1}`}
         className="w-full h-24 object-cover rounded-lg cursor-move"
       />
@@ -66,6 +80,7 @@ function SortableImageItem({ image, index, onRemove }: SortableImageItemProps) {
             onRemove(index);
           }}
           className="text-white text-xl hover:text-accent transition-colors"
+          aria-label={`이미지 ${index + 1} 제거`}
         >
           ✕
         </button>
@@ -75,7 +90,10 @@ function SortableImageItem({ image, index, onRemove }: SortableImageItemProps) {
       </span>
     </div>
   );
-}
+});
+
+// displayName 설정 (React DevTools 디버깅용)
+SortableImageItem.displayName = 'SortableImageItem';
 
 export default function ImageUpload({
   images,
@@ -152,13 +170,13 @@ export default function ImageUpload({
     [handleFiles]
   );
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     handleFiles(e.target.files);
-  };
+  }, [handleFiles]);
 
-  const removeImage = (index: number) => {
+  const removeImage = useCallback((index: number) => {
     onChange(images.filter((_, i) => i !== index));
-  };
+  }, [images, onChange]);
 
   return (
     <div className="space-y-3">

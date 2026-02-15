@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import dynamic from 'next/dynamic';
 import Navigation from '@/components/layout/Navigation';
 import { Sparkles, Copy, Download, AlertCircle, ChevronDown, Check, X } from 'lucide-react';
@@ -85,7 +85,7 @@ export default function GeneratePage() {
   }, []);
 
   // 클라이언트 사이드 이미지 압축 함수 (메모리 누수 방지)
-  const compressImage = async (file: File): Promise<string> => {
+  const compressImage = useCallback(async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -144,10 +144,10 @@ export default function GeneratePage() {
       };
       reader.readAsDataURL(file);
     });
-  };
+  }, []);
 
   // 메뉴 정보 파싱 (메뉴명 | 가격 형식)
-  const parseMenuInput = (): MenuInfo[] => {
+  const parseMenuInput = useCallback((): MenuInfo[] => {
     if (!menuInput.trim()) return [];
 
     return menuInput
@@ -162,9 +162,9 @@ export default function GeneratePage() {
         };
       })
       .filter((menu) => menu.name); // 이름이 있는 메뉴만
-  };
+  }, [menuInput]);
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
     setError('');
     setLoading(true);
     setLoadingStep('compress');
@@ -285,10 +285,10 @@ export default function GeneratePage() {
       setLoading(false);
       setLoadingStep(null);
     }
-  };
+  }, [topic, images, keywords, startSentence, endSentence, length, placeInfo, selectedReviews, menuInput, parseMenuInput, compressImage]);
 
   // Phase 20: 전문가 모드 글 생성
-  const handleGenerateExpert = async (params: {
+  const handleGenerateExpert = useCallback(async (params: {
     expertType: ExpertType;
     modelConfig: ModelConfig;
     webSearchResults?: WebSearchResult[];
@@ -384,9 +384,9 @@ export default function GeneratePage() {
       setLoading(false);
       setLoadingStep(null);
     }
-  };
+  }, [images, topic, keywords, length, startSentence, endSentence, placeInfo, compressImage]);
 
-  const handleCopyToClipboard = async () => {
+  const handleCopyToClipboard = useCallback(async () => {
     if (!result) return;
 
     setCopyStatus('idle');
@@ -403,9 +403,9 @@ export default function GeneratePage() {
       setCopyStatus('error');
       setTimeout(() => setCopyStatus('idle'), 3000);
     }
-  };
+  }, [result]);
 
-  const handleRefineContent = async () => {
+  const handleRefineContent = useCallback(async () => {
     if (!refineInput.trim() || !result || !imageAnalysisResult) return;
 
     setIsRefining(true);
@@ -470,9 +470,9 @@ export default function GeneratePage() {
     } finally {
       setIsRefining(false);
     }
-  };
+  }, [refineInput, result, imageAnalysisResult, keywords, placeInfo]);
 
-  const handleSearchPlace = async () => {
+  const handleSearchPlace = useCallback(async () => {
     if (!placeName.trim()) return;
 
     setLoadingPlace(true);
@@ -495,13 +495,19 @@ export default function GeneratePage() {
     } finally {
       setLoadingPlace(false);
     }
-  };
+  }, [placeName]);
 
-  const lengthOptions = [
+  const lengthOptions = useMemo(() => [
     { value: 'short', label: '짧은 글', desc: '1500-2000자', emoji: '📄' },
     { value: 'medium', label: '중간 글', desc: '2000-2500자', emoji: '📑' },
     { value: 'long', label: '긴 글', desc: '2500-3000자', emoji: '📚' },
-  ];
+  ], []);
+
+  // 이미지 가이드 메모이제이션 (계산 비용이 높은 연산)
+  const imageGuides = useMemo(() =>
+    result ? generateClientImageGuides(result.content, result.imageAnalysis) : [],
+    [result]
+  );
 
   return (
     <div className="min-h-screen">
@@ -568,7 +574,6 @@ export default function GeneratePage() {
             </div>
 
             {(() => {
-              const imageGuides = generateClientImageGuides(result.content, result.imageAnalysis);
               return (
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-4">

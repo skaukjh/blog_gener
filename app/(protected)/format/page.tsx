@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Navigation from '@/components/layout/Navigation';
 import { RotateCw } from 'lucide-react';
 
@@ -55,12 +55,12 @@ export default function FormatPage() {
   }, []);
 
   // 토큰 사용량 계산 (대략적)
-  const estimateTokens = () => {
+  const estimateTokens = useMemo(() => {
     const totalLength = post1.length + post2.length;
     return Math.ceil(totalLength / 4) + 200; // 입력 + 출력 예상
-  };
+  }, [post1.length, post2.length]);
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = useCallback(async () => {
     // 입력 검증
     if (!post1.trim() || !post2.trim()) {
       setError('두 개의 글이 모두 필요합니다');
@@ -110,16 +110,16 @@ export default function FormatPage() {
     } finally {
       setAnalyzing(false);
     }
-  };
+  }, [post1, post2]);
 
-  const handleClearAll = () => {
+  const handleClearAll = useCallback(() => {
     setPost1('');
     setPost2('');
     setCompactStyle(null);
     setAnalyzedAt(null);
     setError('');
     setSuccess(false);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen">
@@ -251,7 +251,7 @@ export default function FormatPage() {
 
                 <div className="bg-gradient-to-br from-secondary/20 to-secondary/10 p-4 rounded-lg">
                   <p className="text-xs text-gray-600 mb-2 font-medium">토큰 사용량</p>
-                  <p className="text-sm font-semibold text-gray-800">약 {estimateTokens()} 토큰</p>
+                  <p className="text-sm font-semibold text-gray-800">약 {estimateTokens} 토큰</p>
                 </div>
               </div>
 

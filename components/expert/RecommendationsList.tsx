@@ -1,7 +1,7 @@
 'use client';
 
+import React, { useState } from 'react';
 import { RecommendationItem, ExpertType } from '@/types';
-import { useState } from 'react';
 
 interface RecommendationsListProps {
   recommendations: RecommendationItem[];
@@ -17,7 +17,7 @@ const TYPE_LABELS: Record<string, string> = {
   dish: '요리',
 };
 
-export function RecommendationsList({
+export const RecommendationsList = React.memo(function RecommendationsList({
   recommendations,
   selectedRecommendations,
   onSelectRecommendations,
@@ -132,4 +132,4 @@ export function RecommendationsList({
       </div>
     </div>
   );
-}
+});

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { LogOut, ChevronDown } from 'lucide-react';
 
 export default function Navigation() {
@@ -10,7 +10,7 @@ export default function Navigation() {
   const [isLoading, setIsLoading] = useState(false);
   const [isNeighborOpen, setIsNeighborOpen] = useState(false);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     setIsLoading(true);
     try {
       document.cookie = 'blog_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;';
@@ -18,7 +18,7 @@ export default function Navigation() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [router]);
 
   const isGeneratePage = pathname === '/generate';
   const isFormatPage = pathname === '/format';

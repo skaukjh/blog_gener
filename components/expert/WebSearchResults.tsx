@@ -1,7 +1,7 @@
 'use client';
 
+import React, { useState } from 'react';
 import { WebSearchResult } from '@/types';
-import { useState } from 'react';
 
 interface WebSearchResultsProps {
   results: WebSearchResult[];
@@ -10,7 +10,7 @@ interface WebSearchResultsProps {
   isLoading?: boolean;
 }
 
-export function WebSearchResults({
+export const WebSearchResults = React.memo(function WebSearchResults({
   results,
   selectedResults,
   onSelectResults,
@@ -113,4 +113,4 @@ export function WebSearchResults({
       </div>
     </div>
   );
-}
+});

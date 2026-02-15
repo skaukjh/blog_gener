@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useCallback, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { ExpertType, WebSearchResult, RecommendationItem, ModelConfig, KeywordItem } from '@/types';
 import { ExpertSelector } from './ExpertSelector';
@@ -73,7 +73,7 @@ export function ExpertModeTab({
   const [loadingRec, setLoadingRec] = useState(false);
 
   // 웹 검색 (Naver + Google 동시)
-  const handleWebSearch = async () => {
+  const handleWebSearch = useCallback(async () => {
     if (!searchQuery.trim()) {
       alert('검색어를 입력해주세요');
       return;
@@ -111,10 +111,10 @@ export function ExpertModeTab({
     } finally {
       setLoadingSearch(false);
     }
-  };
+  }, [searchQuery]);
 
   // 추천 검색
-  const handleGetRecommendations = async () => {
+  const handleGetRecommendations = useCallback(async () => {
     if (!selectedExpert) {
       alert('먼저 전문가를 선택해주세요');
       return;
@@ -152,7 +152,12 @@ export function ExpertModeTab({
     } finally {
       setLoadingRec(false);
     }
-  };
+  }, [selectedExpert, searchQuery]);
+
+  // 창의성 슬라이더 변경 핸들러
+  const handleCreativityChange = useCallback((creativity: number) => {
+    setModelConfig(prev => ({ ...prev, creativity }));
+  }, []);
 
   const canGenerate = selectedExpert && !disabled && !isLoading;
 

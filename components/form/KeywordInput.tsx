@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type { KeywordItem } from '@/types/index';
 import { Check, X } from 'lucide-react';
 
@@ -20,7 +20,7 @@ export default function KeywordInput({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingCount, setEditingCount] = useState<string>('1');
 
-  const addKeyword = () => {
+  const addKeyword = useCallback(() => {
     if (!inputValue.trim()) {
       alert('키워드를 입력해주세요');
       return;
@@ -40,31 +40,31 @@ export default function KeywordInput({
     onChange([...keywords, { text: inputValue, count }]);
     setInputValue('');
     setCountValue('1');
-  };
+  }, [inputValue, countValue, keywords, maxKeywords, onChange]);
 
-  const removeKeyword = (index: number) => {
+  const removeKeyword = useCallback((index: number) => {
     onChange(keywords.filter((_, i) => i !== index));
-  };
+  }, [keywords, onChange]);
 
-  const startEditing = (index: number) => {
+  const startEditing = useCallback((index: number) => {
     setEditingIndex(index);
     setEditingCount(keywords[index].count.toString());
-  };
+  }, [keywords]);
 
-  const saveEdit = (index: number) => {
+  const saveEdit = useCallback((index: number) => {
     const count = Math.max(1, Math.min(10, parseInt(editingCount) || 1));
     const updated = [...keywords];
     updated[index] = { ...updated[index], count };
     onChange(updated);
     setEditingIndex(null);
-  };
+  }, [keywords, editingCount, onChange]);
 
-  const cancelEdit = () => {
+  const cancelEdit = useCallback(() => {
     setEditingIndex(null);
     setEditingCount('1');
-  };
+  }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       if (editingIndex !== null) {
         saveEdit(editingIndex);
@@ -75,7 +75,7 @@ export default function KeywordInput({
     } else if (e.key === 'Escape' && editingIndex !== null) {
       cancelEdit();
     }
-  };
+  }, [editingIndex, saveEdit, addKeyword, cancelEdit]);
 
   return (
     <div className="space-y-3">
