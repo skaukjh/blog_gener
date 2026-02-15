@@ -398,6 +398,122 @@ All types are defined in `types/index.ts`. Key types:
 - **Priority-Based Prompting**: Replaced competing instructions with clear hierarchy
 - **Visual-First Approach**: Forced image descriptions to avoid hallucination and generic content
 
+## Phase 20: 전문가 기반 블로그 글 생성 시스템 구현 (2026-02-15 완료) ⭐⭐⭐⭐⭐
+
+### 구현 완료 (Phase 1: 기반 구조 + 5개 전문가)
+
+#### 1️⃣ 전문가 시스템 (5개 완성)
+- ✅ `lib/experts/definitions.ts` - 5개 전문가 정의
+  - 맛집 파워 블로거 (🍴)
+  - 제품 후기 파워 블로거 (📦)
+  - 여행 파워 블로거 (✈️)
+  - 패션 파워 블로거 (👗)
+  - 리빙 파워 블로거 (🏠)
+
+- ✅ `lib/experts/prompts.ts` - 전문가별 System Prompts
+  - 이미지 분석 프롬프트 (각 분야 특화)
+  - 콘텐츠 생성 프롬프트 (전문가 페르소나 + 어휘)
+  - 각 전문가별 추천 쿼리 템플릿
+
+#### 2️⃣ 웹 검색 통합
+- ✅ `lib/search/web-search.ts` - Naver + Google 검색
+  - searchNaver(), searchGoogle() 함수
+  - HTML 스트리핑, 결과 포맷팅
+  - 무료 할당량: Naver (25,000건/일), Google (100건/일)
+
+- ✅ `lib/search/fact-extractor.ts` - Hallucination 방지
+  - extractFacts() - 검색 결과에서만 정보 추출
+  - temperature: 0.1 (팩트 위주)
+
+- ✅ `app/api/search/web/route.ts` - 웹 검색 API
+  - POST /api/search/web
+  - 요청: query, searchEngine, limit, extractFacts
+  - 응답: results 배열
+
+#### 3️⃣ 추천 시스템
+- ✅ `lib/search/recommendations.ts` - 전문가별 추천
+  - 맛집: 주변 맛집 추천
+  - 제품: 관련 제품 추천
+  - 여행: 관광지 + 주변 맛집 추천
+  - 패션: 유사 스타일 추천
+  - 리빙: 유사 제품 추천
+
+- ✅ `app/api/search/recommendations/route.ts` - 추천 API
+  - POST /api/search/recommendations
+  - 요청: query, expertType, recommendationType
+  - 응답: RecommendationItem 배열
+
+#### 4️⃣ 다중 AI 모델 지원
+- ✅ `lib/openai/client.ts` 확장
+  - OpenAI: gpt-5.2, gpt-4.5, gpt-4.1, gpt-4o, gpt-4o-mini
+  - Claude: Opus 4.6, Sonnet 4.5, Haiku 4.5
+  - Gemini: 3 Pro, 3 Flash
+  - isValidModel() 검증 함수
+
+#### 5️⃣ 전문가별 분석 & 생성 API
+- ✅ `lib/openai/image-analyzer.ts` 확장
+  - analyzeImagesExpert() 함수
+  - analyzeImageBatchExpert() 배치 처리
+  - analyzeOverallContextExpert() 컨텍스트 분석
+  - ModelConfig 파라미터로 모델 선택 가능
+
+- ✅ `lib/openai/content-generator.ts` 확장
+  - generateBlogContentExpert() 함수
+  - 웹 검색 결과 자동 통합
+  - 추천 정보 자동 통합
+  - temperature로 창의성 조절 (1-10 → 0.3-1.2)
+  - 마커 검증 유지
+
+- ✅ `app/api/generate/analyze-images-expert/route.ts`
+  - POST /api/generate/analyze-images-expert
+  - 전문가별 이미지 분석
+
+- ✅ `app/api/generate/create-content-expert/route.ts`
+  - POST /api/generate/create-content-expert
+  - 전문가별 콘텐츠 생성 + 웹 검색 + 추천 통합
+
+#### 6️⃣ UI 컴포넌트 (6개)
+- ✅ `components/expert/ExpertSelector.tsx` - 5개 전문가 선택 버튼
+- ✅ `components/expert/ModelSelector.tsx` - 3개 프리셋 + 고급 설정
+- ✅ `components/expert/CreativitySlider.tsx` - 1-10 슬라이더
+- ✅ `components/expert/WebSearchResults.tsx` - 검색 결과 선택
+- ✅ `components/expert/RecommendationsList.tsx` - 추천 목록 선택
+- ✅ `components/expert/ExpertModeTab.tsx` - 통합 컴포넌트
+
+#### 7️⃣ 메인 페이지 통합
+- ✅ `app/(protected)/generate/page.tsx` 수정
+  - "📝 기본 모드" vs "⭐ 전문가 모드" 탭
+  - handleGenerateExpert() 함수 구현
+  - ExpertModeTab 컴포넌트 통합
+
+### 빌드 결과
+- ✅ npm run build 성공 (2.8s)
+- ✅ TypeScript strict mode 통과
+- ✅ 28개 페이지, 21개 API 엔드포인트 생성
+
+### 환경 변수 (모두 설정됨)
+```bash
+✅ OPENAI_API_KEY=sk-proj-...
+✅ NAVER_CLIENT_ID=...
+✅ NAVER_CLIENT_SECRET=...
+✅ GOOGLE_CSE_ID=...
+✅ GOOGLE_CSE_API_KEY=...
+```
+
+### 예상 비용 (요청당)
+| 조합 | 이미지 분석 | 웹 검색 | 팩트 추출 | 추천 | 콘텐츠 생성 | 합계 |
+|------|-----------|--------|---------|-----|-----------|------|
+| 기본 (gpt-4o) | 15원 | 2원 | 1원 | 2원 | 5원 | **25원** |
+| 최고품질 (gpt-5.2) | 25원 | 2원 | 1원 | 2원 | 6원 | **36원** |
+| 절약 (gpt-4o-mini) | 8원 | 2원 | 1원 | 2원 | 3원 | **16원** |
+
+### 다음 단계
+1. ✅ Phase 1 (기본 구조 + 5개 전문가)
+2. ⏳ 개발 서버 테스트 (기본 모드 + 전문가 모드)
+3. ⏳ 웹 검색 API 통합 검증
+4. ⏳ 추천 시스템 정확도 검증
+5. ⏳ 최종 통합 테스트 및 최적화
+
 ## Security Notes
 
 - Never commit `.env.local` (already in `.gitignore`)
@@ -406,3 +522,4 @@ All types are defined in `types/index.ts`. Key types:
 - All protected routes verified by middleware before reaching handlers
 - API endpoints validate JWT before processing requests
 - OpenAI API keys never logged or exposed in error messages
+- **Phase 20**: Web search queries anonymized, no user data in API logs

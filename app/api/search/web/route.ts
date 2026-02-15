@@ -1,16 +1,16 @@
-import { webSearch } from '@/lib/search/web-search';
+import { webSearch, webSearchBoth } from '@/lib/search/web-search';
 import { extractFacts } from '@/lib/search/fact-extractor';
 import { WebSearchResponse } from '@/types';
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * POST /api/search/web
- * 네이버 또는 구글에서 웹 검색
+ * 웹 검색 (Naver + Google)
  *
  * Request:
  * {
  *   query: string,
- *   searchEngine: 'naver' | 'google',
+ *   searchEngine?: 'naver' | 'google' | 'both' (기본값: 'both'),
  *   limit?: number,
  *   extractFacts?: boolean
  * }
@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest): Promise<NextResponse<WebSearchResponse>> {
   try {
     const body = await request.json();
-    const { query, searchEngine = 'naver', limit = 5, extractFacts: shouldExtractFacts = false } = body;
+    const { query, searchEngine = 'both', limit = 5, extractFacts: shouldExtractFacts = false } = body;
 
     if (!query) {
       return NextResponse.json(
@@ -26,15 +26,23 @@ export async function POST(request: NextRequest): Promise<NextResponse<WebSearch
           success: false,
           results: [],
           query: '',
-          source: searchEngine,
+          source: 'both',
           error: '검색 쿼리를 입력해주세요',
         } as WebSearchResponse,
         { status: 400 }
       );
     }
 
+    let results;
+
     // 웹 검색
-    const results = await webSearch(query, searchEngine as 'naver' | 'google', limit);
+    if (searchEngine === 'both') {
+      // Naver + Google 동시 검색 (기본)
+      results = await webSearchBoth(query, limit);
+    } else {
+      // 단일 엔진 검색
+      results = await webSearch(query, searchEngine as 'naver' | 'google', limit);
+    }
 
     // 팩트 추출 (선택사항)
     if (shouldExtractFacts && results.length > 0) {
@@ -46,18 +54,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<WebSearch
       success: true,
       results,
       query,
-      source: searchEngine as 'naver' | 'google',
+      source: searchEngine as 'naver' | 'google' | 'both',
     });
   } catch (error) {
     console.error('Web search API error:', error);
     const errorMessage = error instanceof Error ? error.message : '검색 중 오류가 발생했습니다';
 
+    // 부분 실패도 반환 (한 엔진만 실패했을 수 있음)
     return NextResponse.json(
       {
         success: false,
         results: [],
         query: '',
-        source: 'naver',
+        source: 'both',
         error: errorMessage,
       } as WebSearchResponse,
       { status: 500 }

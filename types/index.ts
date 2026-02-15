@@ -436,7 +436,7 @@ export interface WebSearchResponse {
   success: boolean;
   results: WebSearchResult[];
   query: string;
-  source: 'naver' | 'google';
+  source: 'naver' | 'google' | 'both';
   message?: string;
   error?: string;
 }

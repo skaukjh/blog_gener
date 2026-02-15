@@ -33,9 +33,9 @@ export function ExpertModeTab({
   });
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchEngine, setSearchEngine] = useState<'naver' | 'google'>('naver');
   const [webSearchResults, setWebSearchResults] = useState<WebSearchResult[]>([]);
   const [selectedWebResults, setSelectedWebResults] = useState<WebSearchResult[]>([]);
+  const [searchErrors, setSearchErrors] = useState<{ naver?: string; google?: string }>({});
 
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
   const [selectedRecommendations, setSelectedRecommendations] = useState<RecommendationItem[]>([]);
@@ -43,7 +43,7 @@ export function ExpertModeTab({
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [loadingRec, setLoadingRec] = useState(false);
 
-  // 웹 검색
+  // 웹 검색 (Naver + Google 동시)
   const handleWebSearch = async () => {
     if (!searchQuery.trim()) {
       alert('검색어를 입력해주세요');
@@ -51,13 +51,14 @@ export function ExpertModeTab({
     }
 
     setLoadingSearch(true);
+    setSearchErrors({});
     try {
       const response = await fetch('/api/search/web', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: searchQuery,
-          searchEngine,
+          searchEngine: 'both', // 네이버 + 구글 동시 검색
           limit: 5,
         }),
       });
@@ -66,12 +67,18 @@ export function ExpertModeTab({
       if (data.success) {
         setWebSearchResults(data.results);
         setSelectedWebResults([]); // 초기화
+        if (data.results.length === 0) {
+          alert('검색 결과가 없습니다');
+        }
       } else {
         alert('검색 실패: ' + (data.error || '알 수 없는 오류'));
+        setSearchErrors({ naver: data.error, google: data.error });
       }
     } catch (error) {
       console.error('Web search error:', error);
-      alert('검색 중 오류가 발생했습니다');
+      const errorMsg = error instanceof Error ? error.message : '검색 중 오류가 발생했습니다';
+      alert(errorMsg);
+      setSearchErrors({ naver: errorMsg, google: errorMsg });
     } finally {
       setLoadingSearch(false);
     }
@@ -154,7 +161,7 @@ export function ExpertModeTab({
           {/* 웹 검색 */}
           <div className="border-t pt-6 space-y-4">
             <div>
-              <h3 className="text-lg font-semibold mb-3">🔍 웹 검색 (선택)</h3>
+              <h3 className="text-lg font-semibold mb-3">🔍 웹 검색 (선택) - 네이버 + 구글 동시 검색</h3>
               <div className="space-y-3">
                 {/* 검색어 입력 */}
                 <div className="flex gap-2">
@@ -172,17 +179,6 @@ export function ExpertModeTab({
                     className="flex-1 px-3 py-2 border border-gray-300 rounded disabled:opacity-50"
                   />
 
-                  {/* 검색 엔진 선택 */}
-                  <select
-                    value={searchEngine}
-                    onChange={(e) => setSearchEngine(e.target.value as 'naver' | 'google')}
-                    disabled={disabled || isLoading}
-                    className="px-3 py-2 border border-gray-300 rounded disabled:opacity-50"
-                  >
-                    <option value="naver">네이버</option>
-                    <option value="google">구글</option>
-                  </select>
-
                   {/* 검색 버튼 */}
                   <button
                     onClick={handleWebSearch}
@@ -193,12 +189,27 @@ export function ExpertModeTab({
                   </button>
                 </div>
 
+                {/* 검색 엔진 안내 */}
+                <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                  📌 네이버와 구글에서 동시에 검색합니다. 검색 결과는 중복 제거 후 표시됩니다.
+                </div>
+
+                {/* 검색 에러 표시 */}
+                {(searchErrors.naver || searchErrors.google) && (
+                  <div className="bg-red-50 border border-red-200 rounded p-3">
+                    <p className="text-sm font-semibold text-red-700 mb-1">⚠️ 검색 중 문제 발생:</p>
+                    {searchErrors.naver && <p className="text-xs text-red-600">🔹 네이버: {searchErrors.naver}</p>}
+                    {searchErrors.google && <p className="text-xs text-red-600">🔹 구글: {searchErrors.google}</p>}
+                  </div>
+                )}
+
                 {/* 웹 검색 결과 */}
                 {webSearchResults.length > 0 && (
                   <WebSearchResults
                     results={webSearchResults}
                     selectedResults={selectedWebResults}
                     onSelectResults={setSelectedWebResults}
+                    isLoading={loadingSearch}
                   />
                 )}
               </div>

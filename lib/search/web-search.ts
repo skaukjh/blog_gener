@@ -100,7 +100,7 @@ export async function searchGoogle(query: string, limit: number = 5): Promise<We
 }
 
 /**
- * 통합 검색 함수
+ * 통합 검색 함수 (단일 엔진)
  */
 export async function webSearch(
   query: string,
@@ -111,6 +111,38 @@ export async function webSearch(
     return searchNaver(query, limit);
   } else {
     return searchGoogle(query, limit);
+  }
+}
+
+/**
+ * 동시 검색 함수 (Naver + Google)
+ * Phase 20: 두 검색 엔진에서 동시에 검색하여 결과 통합
+ */
+export async function webSearchBoth(
+  query: string,
+  limit: number = 5
+): Promise<WebSearchResult[]> {
+  try {
+    // Naver와 Google에서 동시에 검색
+    const [naverResults, googleResults] = await Promise.allSettled([
+      searchNaver(query, limit),
+      searchGoogle(query, limit),
+    ]).then((results) => [
+      results[0].status === 'fulfilled' ? results[0].value : [],
+      results[1].status === 'fulfilled' ? results[1].value : [],
+    ]);
+
+    // 결과 병합 (중복 제거)
+    const combined = [...naverResults, ...googleResults];
+    const uniqueResults = Array.from(
+      new Map(combined.map((item) => [item.url, item])).values()
+    );
+
+    return uniqueResults.slice(0, limit * 2); // 각 엔진당 limit개씩, 최대 limit*2개
+  } catch (error) {
+    console.error('Dual search error:', error);
+    // 실패해도 에러 throw하지 않고, 부분 결과 반환
+    return [];
   }
 }
 

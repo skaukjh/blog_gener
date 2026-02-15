@@ -7,6 +7,7 @@ interface WebSearchResultsProps {
   results: WebSearchResult[];
   selectedResults: WebSearchResult[];
   onSelectResults: (results: WebSearchResult[]) => void;
+  isLoading?: boolean;
 }
 
 export function WebSearchResults({

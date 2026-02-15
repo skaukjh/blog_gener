@@ -36,9 +36,6 @@ export default function GeneratePage() {
   const [showMenuInput, setShowMenuInput] = useState(false);
   const [selectedReviews, setSelectedReviews] = useState<number[]>([]); // 선택된 리뷰 인덱스
 
-  // Phase 20: 전문가 모드 상태
-  const [selectedMode, setSelectedMode] = useState<'basic' | 'expert'>('basic');
-
   // 초기 로드 시 저장된 스타일 조회 (sessionStorage 우선)
   useEffect(() => {
     const loadSavedStyle = async () => {
@@ -497,38 +494,7 @@ export default function GeneratePage() {
             AI를 활용하여 파워 블로거 스타일의 블로그 글을 자동으로 생성합니다
           </p>
 
-          {/* Phase 20: 모드 선택 탭 */}
-          <div className="flex gap-2 mt-6">
-            <button
-              onClick={() => {
-                setSelectedMode('basic');
-                setResult(null);
-                setError('');
-              }}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                selectedMode === 'basic'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              📝 기본 모드
-            </button>
-            <button
-              onClick={() => {
-                setSelectedMode('expert');
-                setResult(null);
-                setError('');
-              }}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                selectedMode === 'expert'
-                  ? 'bg-purple-600 text-white shadow-lg'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              ⭐ 전문가 모드
-            </button>
           </div>
-        </div>
 
         {/* 스타일 상태 표시 */}
         {styleChecked && (
@@ -798,13 +764,16 @@ export default function GeneratePage() {
               )}
             </div>
           </div>
-        ) : selectedMode === 'expert' ? (
+        ) : (
           <ExpertModeTab
             onGenerateWithExpert={handleGenerateExpert}
             isLoading={loading}
             disabled={!savedStyle}
           />
-        ) : (
+        )}
+
+        {/* 기본 모드는 제거됨 (전문가 모드만 제공) */}
+        {false && (
           <div className="space-y-6">
             <div className="glass-effect rounded-xl p-8 shadow-soft">
               <label className="block text-lg font-semibold text-gray-800 mb-4">
