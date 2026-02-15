@@ -47,8 +47,16 @@ export default function GeneratePage() {
         }
 
         // 2. 서버에서 조회 시도 (Vercel에서는 실패할 수 있음)
+        // 타임아웃 5초로 설정하여 무한 대기 방지
         try {
-          const response = await fetch('/api/blog/get-current-style');
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+          const response = await fetch('/api/blog/get-current-style', {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+
           if (response.ok) {
             const data = await response.json();
             if (data.exists) {
@@ -778,6 +786,15 @@ export default function GeneratePage() {
             onGenerateWithExpert={handleGenerateExpert}
             isLoading={loading}
             disabled={!savedStyle}
+            images={images}
+            onImagesChange={setImages}
+            topic={topic}
+            onTopicChange={setTopic}
+            keywords={keywords}
+            onKeywordsChange={setKeywords}
+            length={length}
+            onLengthChange={setLength}
+            error={error}
           />
         )}
 

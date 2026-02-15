@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { ExpertType, WebSearchResult, RecommendationItem, ModelConfig } from '@/types';
+import { ExpertType, WebSearchResult, RecommendationItem, ModelConfig, KeywordItem } from '@/types';
 import { ExpertSelector } from './ExpertSelector';
 import { ModelSelector } from './ModelSelector';
 import { CreativitySlider } from './CreativitySlider';
 import { WebSearchResults } from './WebSearchResults';
 import { RecommendationsList } from './RecommendationsList';
+import ImageUpload from '../form/ImageUpload';
+import KeywordInput from '../form/KeywordInput';
 
 interface ExpertModeTabProps {
   onGenerateWithExpert: (params: {
@@ -17,12 +19,31 @@ interface ExpertModeTabProps {
   }) => void;
   isLoading?: boolean;
   disabled?: boolean;
+  // 필수 입력 필드
+  images: File[];
+  onImagesChange: (images: File[]) => void; // ImageUpload는 onChange를 사용하지만 여기서는 onImagesChange로 래핑
+  topic: string;
+  onTopicChange: (topic: string) => void;
+  keywords: KeywordItem[];
+  onKeywordsChange: (keywords: KeywordItem[]) => void;
+  length: 'short' | 'medium' | 'long';
+  onLengthChange: (length: 'short' | 'medium' | 'long') => void;
+  error?: string;
 }
 
 export function ExpertModeTab({
   onGenerateWithExpert,
   isLoading = false,
   disabled = false,
+  images,
+  onImagesChange,
+  topic,
+  onTopicChange,
+  keywords,
+  onKeywordsChange,
+  length,
+  onLengthChange,
+  error,
 }: ExpertModeTabProps) {
   const [selectedExpert, setSelectedExpert] = useState<ExpertType | null>(null);
   const [modelConfig, setModelConfig] = useState<ModelConfig>({
@@ -129,6 +150,14 @@ export function ExpertModeTab({
 
   return (
     <div className="space-y-6 bg-white rounded-lg border border-gray-200 p-6">
+      {/* 에러 메시지 */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          <p className="font-semibold">❌ 오류</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      )}
+
       {/* 전문가 선택 */}
       <ExpertSelector
         selectedExpert={selectedExpert}
@@ -138,6 +167,80 @@ export function ExpertModeTab({
 
       {selectedExpert && (
         <>
+          {/* 필수 입력 필드 */}
+          <div className="border-t pt-6 space-y-4">
+            {/* 이미지 업로드 */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">📸 이미지 업로드 <span className="text-red-500">*필수</span></h3>
+              <ImageUpload
+                images={images}
+                onChange={onImagesChange}
+              />
+              {images.length > 0 && (
+                <p className="text-sm text-green-600 mt-2">✓ {images.length}장의 이미지가 업로드되었습니다</p>
+              )}
+            </div>
+
+            {/* 주제 입력 */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">📝 주제 입력 <span className="text-red-500">*필수</span></h3>
+              <input
+                type="text"
+                value={topic}
+                onChange={(e) => onTopicChange(e.target.value)}
+                placeholder="블로그 글의 주제를 입력하세요... (예: 강남 맛집 추천, 요즘 핫한 제품)"
+                disabled={disabled || isLoading}
+                maxLength={100}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:bg-gray-100"
+              />
+              <p className="text-xs text-gray-500 mt-1">{topic.length} / 100</p>
+              {topic.trim().length > 0 && (
+                <p className="text-sm text-green-600 mt-1">✓ 주제가 입력되었습니다</p>
+              )}
+            </div>
+
+            {/* 키워드 입력 */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">🏷️ 키워드 <span className="text-red-500">*필수</span></h3>
+              <KeywordInput
+                keywords={keywords}
+                onChange={onKeywordsChange}
+              />
+              {keywords.length > 0 && (
+                <p className="text-sm text-green-600 mt-2">✓ {keywords.length}개의 키워드가 입력되었습니다</p>
+              )}
+            </div>
+
+            {/* 글 길이 선택 */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">📏 글 길이 선택</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: 'short', label: '짧은 글', desc: '1500-2000자' },
+                  { value: 'medium', label: '중간 글', desc: '2000-2500자' },
+                  { value: 'long', label: '긴 글', desc: '2500-3000자' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => onLengthChange(opt.value as 'short' | 'medium' | 'long')}
+                    disabled={disabled || isLoading}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      length === opt.value
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-primary'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <p className="font-semibold text-sm">{opt.label}</p>
+                    <p className="text-xs text-gray-500 mt-1">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                선택됨: <strong>{length === 'short' ? '짧은 글 (1500-2000자)' : length === 'medium' ? '중간 글 (2000-2500자)' : '긴 글 (2500-3000자)'}</strong>
+              </p>
+            </div>
+          </div>
+
           {/* 모델 설정 */}
           <div className="border-t pt-6">
             <ModelSelector
