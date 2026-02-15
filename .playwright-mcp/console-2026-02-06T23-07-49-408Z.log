@@ -1,5 +1,0 @@
-[    2179ms] Event
-[   22351ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/blog/fetch-latest:0
-[   23150ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/blog/fetch-latest:0
-[   33384ms] Event
-[   37396ms] Event

@@ -72,46 +72,57 @@ export default function GeneratePage() {
     loadSavedStyle();
   }, []);
 
-  // 클라이언트 사이드 이미지 압축 함수
+  // 클라이언트 사이드 이미지 압축 함수 (메모리 누수 방지)
   const compressImage = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
+          try {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
 
-          // 최대 1280px로 리사이징
-          const maxSize = 1280;
-          if (width > height) {
-            if (width > maxSize) {
-              height = (height * maxSize) / width;
-              width = maxSize;
+            // 최대 1280px로 리사이징
+            const maxSize = 1280;
+            if (width > height) {
+              if (width > maxSize) {
+                height = (height * maxSize) / width;
+                width = maxSize;
+              }
+            } else {
+              if (height > maxSize) {
+                width = (width * maxSize) / height;
+                height = maxSize;
+              }
             }
-          } else {
-            if (height > maxSize) {
-              width = (width * maxSize) / height;
-              height = maxSize;
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('Canvas context를 얻을 수 없습니다'));
+              return;
             }
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // JPEG로 변환하여 압축 (품질 75%)
+            const compressedData = canvas.toDataURL('image/jpeg', 0.75);
+
+            // ✅ 메모리 정리
+            canvas.width = 0;
+            canvas.height = 0;
+            img.src = '';
+
+            resolve(compressedData);
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error('이미지 압축 실패'));
           }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Canvas context를 얻을 수 없습니다'));
-            return;
-          }
-
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // JPEG로 변환하여 압축 (품질 75%)
-          const compressedData = canvas.toDataURL('image/jpeg', 0.75);
-          resolve(compressedData);
         };
         img.onerror = () => {
+          img.src = ''; // 정리
           reject(new Error('이미지 로드 실패'));
         };
         img.src = e.target?.result as string;

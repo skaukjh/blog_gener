@@ -1,5 +1,0 @@
-[    8616ms] [WARNING] setPolicyInfo {versionInfo: Object, sdkInfo: Object, sentryInfo: Object} @ https://ssl.pstatic.net/tveta/libs/glad/prod/gfp-core.js:0
-[    9045ms] [ERROR] Fail to create FourColumn. no materials @ https://pm.pstatic.net/resources/js/preload.baeef60d.js?o=www:1
-[    9178ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://shopsquare.naver.com') does not match the recipient window's origin ('https://www.naver.com'). @ https://pm.pstatic.net/resources/js/main.a3a430be.js?o=www:1
-[    9179ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://recoshopping.naver.com') does not match the recipient window's origin ('https://www.naver.com'). @ https://pm.pstatic.net/resources/js/main.a3a430be.js?o=www:1
-[   11719ms] [WARNING] setPolicyInfo {versionInfo: Object, sdkInfo: Object, sentryInfo: Object} @ https://ssl.pstatic.net/tveta/libs/glad/prod/gfp-core.js:0

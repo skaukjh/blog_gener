@@ -79,7 +79,7 @@ async function parseSearchResultsAsRecommendations(
 
     switch (expertType) {
       case 'restaurant':
-        prompt = `아래 검색 결과에서 맛집 정보를 추출하세요.
+        prompt = `아래 검색 결과에서 맛집 정보를 추출하고 JSON 형식으로 반환하세요.
 
 검색 결과:
 ${searchResultsText}
@@ -87,23 +87,27 @@ ${searchResultsText}
 각 결과에서 다음 정보를 추출하세요:
 - 음식점 이름 (title)
 - 음식 종류 또는 특징 (description)
-- 평점 또는 평판 (rating - 없으면 생략)
-- 주소 (address - 있으면 포함)
+- 평점 또는 평판 (rating - 없으면 null)
+- 주소 (address - 있으면 포함, 없으면 null)
 
-Output Format:
-<recommendation>
-<title>음식점 이름</title>
-<type>restaurant</type>
-<description>음식 종류와 특징</description>
-<rating>평점 (없으면 생략)</rating>
-<address>주소 (있으면 포함)</address>
-</recommendation>
+JSON 형식:
+{
+  "recommendations": [
+    {
+      "title": "음식점 이름",
+      "type": "restaurant",
+      "description": "음식 종류와 특징",
+      "rating": 4.5,
+      "address": "주소"
+    }
+  ]
+}
 
-각 추천마다 위 형식으로 작성하고, 최대 5개만 추출하세요.`;
+최대 5개만 추출하세요.`;
         break;
 
       case 'product':
-        prompt = `아래 검색 결과에서 제품 정보를 추출하세요.
+        prompt = `아래 검색 결과에서 제품 정보를 추출하고 JSON 형식으로 반환하세요.
 
 검색 결과:
 ${searchResultsText}
@@ -111,22 +115,26 @@ ${searchResultsText}
 각 결과에서 다음 정보를 추출하세요:
 - 제품 이름 (title)
 - 제품 특징 또는 설명 (description)
-- 가격대 또는 평점 (rating - 있으면 포함)
+- 가격대 또는 평점 (rating - 있으면 포함, 없으면 null)
 
-Output Format:
-<recommendation>
-<title>제품 이름</title>
-<type>product</type>
-<description>제품 특징 및 설명</description>
-<rating>가격대/평점 (있으면 포함)</rating>
-</recommendation>
+JSON 형식:
+{
+  "recommendations": [
+    {
+      "title": "제품 이름",
+      "type": "product",
+      "description": "제품 특징 및 설명",
+      "rating": null
+    }
+  ]
+}
 
-각 추천마다 위 형식으로 작성하고, 최대 5개만 추출하세요.`;
+최대 5개만 추출하세요.`;
         break;
 
       case 'travel':
         if (recommendationType === 'nearby') {
-          prompt = `아래 검색 결과에서 관광지 정보를 추출하세요.
+          prompt = `아래 검색 결과에서 관광지 정보를 추출하고 JSON 형식으로 반환하세요.
 
 검색 결과:
 ${searchResultsText}
@@ -136,18 +144,22 @@ ${searchResultsText}
 - 관광지 설명 및 특징 (description)
 - 주소 (address - 있으면 포함)
 
-Output Format:
-<recommendation>
-<title>관광지 이름</title>
-<type>place</type>
-<description>관광지 설명</description>
-<address>주소</address>
-</recommendation>
+JSON 형식:
+{
+  "recommendations": [
+    {
+      "title": "관광지 이름",
+      "type": "place",
+      "description": "관광지 설명",
+      "address": "주소"
+    }
+  ]
+}
 
-각 추천마다 위 형식으로 작성하고, 최대 5개만 추출하세요.`;
+최대 5개만 추출하세요.`;
         } else {
           // destination
-          prompt = `아래 검색 결과에서 여행 목적지 정보를 추출하세요.
+          prompt = `아래 검색 결과에서 여행 목적지 정보를 추출하고 JSON 형식으로 반환하세요.
 
 검색 결과:
 ${searchResultsText}
@@ -156,20 +168,24 @@ ${searchResultsText}
 - 지역/목적지 이름 (title)
 - 여행 특징 및 추천 이유 (description)
 
-Output Format:
-<recommendation>
-<title>목적지 이름</title>
-<type>place</type>
-<description>여행 특징 및 추천 이유</description>
-</recommendation>
+JSON 형식:
+{
+  "recommendations": [
+    {
+      "title": "목적지 이름",
+      "type": "place",
+      "description": "여행 특징 및 추천 이유"
+    }
+  ]
+}
 
-각 추천마다 위 형식으로 작성하고, 최대 5개만 추출하세요.`;
+최대 5개만 추출하세요.`;
         }
         break;
 
       case 'fashion':
       case 'living':
-        prompt = `아래 검색 결과에서 추천 제품/스타일 정보를 추출하세요.
+        prompt = `아래 검색 결과에서 추천 제품/스타일 정보를 추출하고 JSON 형식으로 반환하세요.
 
 검색 결과:
 ${searchResultsText}
@@ -177,23 +193,28 @@ ${searchResultsText}
 각 결과에서 다음 정보를 추출하세요:
 - 제품/스타일 이름 (title)
 - 특징 및 설명 (description)
-- 평점 또는 인기도 (rating - 있으면 포함)
+- 평점 또는 인기도 (rating - 있으면 포함, 없으면 null)
 
-Output Format:
-<recommendation>
-<title>제품/스타일 이름</title>
-<type>${expertType === 'fashion' ? 'product' : 'product'}</type>
-<description>특징 및 설명</description>
-<rating>평점 (있으면 포함)</rating>
-</recommendation>
+JSON 형식:
+{
+  "recommendations": [
+    {
+      "title": "제품/스타일 이름",
+      "type": "product",
+      "description": "특징 및 설명",
+      "rating": null
+    }
+  ]
+}
 
-각 추천마다 위 형식으로 작성하고, 최대 5개만 추출하세요.`;
+최대 5개만 추출하세요.`;
         break;
     }
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       max_tokens: 1000,
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'user',
@@ -202,25 +223,29 @@ Output Format:
       ],
     });
 
-    const content = response.choices[0]?.message?.content || '';
+    const content = response.choices[0]?.message?.content || '{}';
 
-    // XML 파싱
-    const recommendationMatches = content.match(/<recommendation>([\s\S]*?)<\/recommendation>/g) || [];
+    // JSON 파싱 (더 안전하고 신뢰할 수 있음)
+    let data: { recommendations?: RecommendationItem[] } = { recommendations: [] };
+    try {
+      data = JSON.parse(content);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError instanceof Error ? parseError.message : 'Unknown error');
+      return [];
+    }
 
-    const recommendations: RecommendationItem[] = recommendationMatches.map((match) => {
-      const titleMatch = match.match(/<title>([\s\S]*?)<\/title>/);
-      const typeMatch = match.match(/<type>([\s\S]*?)<\/type>/);
-      const descriptionMatch = match.match(/<description>([\s\S]*?)<\/description>/);
-      const ratingMatch = match.match(/<rating>([\s\S]*?)<\/rating>/);
-      const addressMatch = match.match(/<address>([\s\S]*?)<\/address>/);
+    const recommendations: RecommendationItem[] = (data.recommendations || []).map((item) => {
+      const itemType = String(item.type || 'product');
+      const validTypes: ('restaurant' | 'product' | 'place' | 'dish')[] = ['restaurant', 'product', 'place', 'dish'];
+      const type = (validTypes.includes(itemType as any) ? itemType : 'product') as 'restaurant' | 'product' | 'place' | 'dish';
 
       return {
-        title: titleMatch ? titleMatch[1].trim() : '',
-        type: (typeMatch ? typeMatch[1].trim() : 'product') as any,
-        description: descriptionMatch ? descriptionMatch[1].trim() : '',
-        rating: ratingMatch ? parseFloat(ratingMatch[1].trim()) : undefined,
-        address: addressMatch ? addressMatch[1].trim() : undefined,
-        url: '', // 검색 결과에서 URL을 찾아 매칭 (선택사항)
+        title: String(item.title || ''),
+        type,
+        description: String(item.description || ''),
+        rating: typeof item.rating === 'number' ? item.rating : undefined,
+        address: item.address ? String(item.address) : undefined,
+        url: item.url ? String(item.url) : '',
       };
     });
 

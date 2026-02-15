@@ -1,4 +1,5 @@
 import { WebSearchResult } from '@/types';
+import DOMPurify from 'dompurify';
 
 /**
  * Phase 20: 웹 검색 통합
@@ -56,7 +57,7 @@ export async function searchNaver(query: string, limit: number = 5): Promise<Web
       source: 'naver' as const,
     }));
   } catch (error) {
-    console.error('Naver search error:', error);
+    console.error('Naver search failed:', error instanceof Error ? error.message : 'Unknown error');
     throw error;
   }
 }
@@ -94,7 +95,7 @@ export async function searchGoogle(query: string, limit: number = 5): Promise<We
       source: 'google' as const,
     }));
   } catch (error) {
-    console.error('Google search error:', error);
+    console.error('Google search failed:', error instanceof Error ? error.message : 'Unknown error');
     throw error;
   }
 }
@@ -147,10 +148,30 @@ export async function webSearchBoth(
 }
 
 /**
- * HTML 태그 제거
+ * HTML 태그 제거 및 XSS 방지
+ * DOMPurify를 사용하여 안전하게 sanitize
  */
 function stripHtmlTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'");
+  try {
+    // DOMPurify로 안전하게 sanitize (모든 태그 제거)
+    const clean = DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: [],
+      ALLOWED_ATTR: []
+    });
+
+    // HTML entity 디코딩
+    return clean
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .trim();
+  } catch (error) {
+    console.error('HTML sanitization failed:', error instanceof Error ? error.message : 'Unknown error');
+    // 실패 시 기본 방법으로 폴백
+    return html.replace(/<[^>]*>/g, '').trim();
+  }
 }
 
 /**
