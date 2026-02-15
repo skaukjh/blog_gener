@@ -1,11 +1,16 @@
-import { openai, DEFAULT_MODEL } from "./client";
+import { openai, DEFAULT_MODEL, OPENAI_MODELS } from "./client";
 import { CONTENT_GENERATOR_SYSTEM_PROMPT } from "./prompts";
+import { getExpertPrompt } from "@/lib/experts/prompts";
 import { parseMarkers } from "@/lib/utils/marker-parser";
 import type {
   GeneratedContentWithImages,
   ImageAnalysisResult,
   KeywordItem,
   PlaceInfo,
+  ExpertType,
+  ModelConfig,
+  WebSearchResult,
+  RecommendationItem,
 } from "@/types/index";
 
 /**
@@ -489,6 +494,228 @@ Output ONLY the modified blog post content. No explanations.`;
     return refinedContent;
   } catch (error) {
     console.error("콘텐츠 수정 오류:", error);
+    throw error;
+  }
+}
+
+/**
+ * Phase 20: 전문가 기반 블로그 콘텐츠 생성
+ * 웹 검색 결과와 추천 정보를 통합합니다
+ */
+export async function generateBlogContentExpert(
+  topic: string,
+  length: "short" | "medium" | "long",
+  keywords: KeywordItem[],
+  imageAnalysis: ImageAnalysisResult,
+  expertType: ExpertType,
+  modelConfig: ModelConfig,
+  webSearchResults?: WebSearchResult[],
+  recommendations?: RecommendationItem[],
+  startSentence?: string,
+  endSentence?: string,
+  placeInfo?: PlaceInfo
+): Promise<GeneratedContentWithImages> {
+  try {
+    const expertPrompt = getExpertPrompt(expertType);
+    const temperature = 0.3 + (modelConfig.creativity - 1) * 0.1; // 1-10 → 0.3-1.2
+
+    // 기본 설정
+    const charCount = {
+      short: "1500-2000",
+      medium: "2000-2500",
+      long: "2500-3000",
+    }[length];
+
+    const keywordList = keywords.map((k) => `${k.text} (${k.count}회)`).join(", ");
+    const imageCount = imageAnalysis.images.length;
+
+    // 이미지 설명
+    const imageDescriptions = imageAnalysis.images
+      .map(
+        (img) =>
+          `Image ${img.idx}: ${img.desc} (Mood: ${img.mood}, Visual: ${img.visualDetails || 'N/A'})`
+      )
+      .join('\n');
+
+    // 웹 검색 결과 통합
+    let webSearchSection = '';
+    if (webSearchResults && webSearchResults.length > 0) {
+      webSearchSection = `
+⚠️ WEB SEARCH INTEGRATION:
+Based on web search for "${topic}":
+${webSearchResults
+  .map(
+    (result, idx) => `
+${idx + 1}. ${result.title}
+   Source: ${result.source}
+   Content: ${result.snippet}`
+  )
+  .join('\n')}
+
+CRITICAL: Naturally incorporate these web search findings into your content.`
+    }
+
+    // 추천 정보 통합
+    let recommendationsSection = '';
+    if (recommendations && recommendations.length > 0) {
+      recommendationsSection = `
+⚠️ RECOMMENDATIONS TO INCLUDE:
+${recommendations
+  .map(
+    (rec, idx) => `
+${idx + 1}. ${rec.title} (${rec.type})
+   ${rec.description}
+   ${rec.rating ? `Rating: ${rec.rating}` : ''}
+   ${rec.address ? `Address: ${rec.address}` : ''}`
+  )
+  .join('\n')}
+
+CRITICAL: Weave these recommendations naturally into your content.`
+    }
+
+    // User Prompt 생성
+    let userPrompt = `Generate a Korean blog post by an expert ${expertType} blogger with the following specifications:
+
+Topic: ${topic}
+Character count: ${charCount} characters (Korean characters, not words)
+Length: ${length}
+Expert Style: ${expertType} blogger persona
+
+Keywords to include naturally (${keywords.length} total):
+${keywordList}
+
+⚠️ KEYWORD INCLUSION RULES:
+- The numbers shown above are MINIMUM occurrences
+- Include keywords naturally throughout the text, not forced
+- Distribute keywords evenly to maintain natural flow
+
+⚠️ IMAGE PLACEMENT (CRITICAL):
+- TOTAL IMAGES: ${imageCount}
+- Use EXACTLY ${imageCount} image marker(s): ${Array.from({ length: imageCount }, (_, i) => `[IMAGE_${i + 1}]`).join(", ")}
+- RULE: Place [IMAGE_N] markers where they fit the NARRATIVE FLOW naturally
+- Each marker MUST have 1-2 sentences of RELATED context before and after it
+
+Image context and placement guide:
+- Theme: ${imageAnalysis.overall.theme}
+- Style: ${imageAnalysis.overall.style}
+- Suggestions: ${
+      Array.isArray(imageAnalysis.overall.suggestions)
+        ? imageAnalysis.overall.suggestions.join("; ")
+        : "Place images naturally throughout the content"
+    }
+
+Detailed image descriptions (use these to decide WHERE to place markers):
+${imageDescriptions}
+${webSearchSection}
+${recommendationsSection}`;
+
+    if (startSentence) {
+      userPrompt += `\n\nStart with: "${startSentence}"`;
+    }
+
+    if (endSentence) {
+      userPrompt += `\n\nEnd with: "${endSentence}"`;
+    }
+
+    if (placeInfo) {
+      const placeInfoText = formatPlaceInfo(placeInfo);
+      userPrompt += `\n\n⚠️ PLACE INFORMATION:
+${placeInfoText}`;
+    }
+
+    userPrompt += `\n\nCRITICAL REQUIREMENTS (IN PRIORITY ORDER):
+
+PRIORITY 1 - SENTENCE ENDINGS (MANDATORY):
+CRITICAL: ALL sentences MUST end with ~~요 pattern.
+Examples: 맛있어요, 좋았어요, 추천해요
+NEVER use: ~~다, ~~한다, ~~했다
+100% consistency required.
+
+PRIORITY 2 - IMAGE-BASED DESCRIPTIONS:
+- Describe ONLY what is ACTUALLY VISIBLE in the provided images
+- Use image descriptions as source of truth
+- Rich sensory language based on what you see
+- NO generic filler
+
+PRIORITY 3 - NATURAL, WARM TONE & AUTHENTICITY:
+- Write like chatting with a close friend
+- Use personal reactions and experiences
+- Vary sentence structure and openings
+- Include practical info and insider tips
+
+PRIORITY 4 - TECHNICAL REQUIREMENTS:
+- Use EXACTLY ${imageCount} image marker(s) - NO MORE, NO LESS
+- Place [IMAGE_N] markers at natural locations
+- Keywords must appear naturally, not forced
+- NO emojis or icons
+
+PRIORITY 5 - QUALITY & ENGAGEMENT:
+- Write with rich, experiential descriptions
+- Include sensory details and practical tips
+- Make it engaging and valuable for readers`;
+
+    // 모델 선택
+    const modelKey = (modelConfig.contentGenerationModel || 'gpt-4o') as keyof typeof OPENAI_MODELS;
+    const modelName = OPENAI_MODELS[modelKey] || 'gpt-4o';
+
+    const response = await openai.chat.completions.create({
+      model: modelName,
+      messages: [
+        {
+          role: "system",
+          content: expertPrompt.contentGenerationSystemPrompt,
+        },
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
+      temperature: Math.min(temperature, 2.0), // API 최대값: 2.0
+      max_tokens: 3000,
+    });
+
+    let content = response.choices[0]?.message?.content || "";
+
+    if (!content) {
+      throw new Error("콘텐츠 생성 응답을 받을 수 없습니다");
+    }
+
+    // 마커 검증
+    const expectedMarkerCount = imageAnalysis.images.length;
+    let markers = parseMarkers(content);
+
+    if (markers.length === 0) {
+      content = insertMissingMarkers(content, expectedMarkerCount);
+    } else if (markers.length > expectedMarkerCount) {
+      content = removeExcessMarkers(content, expectedMarkerCount);
+    } else if (markers.length < expectedMarkerCount) {
+      content = insertMissingMarkers(content, expectedMarkerCount);
+    }
+
+    // 최종 검증
+    const finalMarkers = parseMarkers(content);
+    if (finalMarkers.length !== expectedMarkerCount) {
+      throw new Error(`마커 개수 불일치: 예상 ${expectedMarkerCount}개, 실제 ${finalMarkers.length}개`);
+    }
+
+    // 키워드 개수 세기
+    const keywordCounts: Record<string, number> = {};
+    for (const keyword of keywords) {
+      const count = (content.match(new RegExp(keyword.text, "gi")) || []).length;
+      keywordCounts[keyword.text] = count;
+    }
+
+    // 글자 수 계산
+    const charCountValue = content.replace(/\[IMAGE_\d+\]/g, "").length;
+
+    return {
+      content,
+      imageGuides: [],
+      wordCount: charCountValue,
+      keywordCounts,
+    };
+  } catch (error) {
+    console.error("전문가 콘텐츠 생성 오류:", error);
     throw error;
   }
 }

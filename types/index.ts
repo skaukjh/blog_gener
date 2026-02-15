@@ -393,3 +393,124 @@ export interface NeighborCommentResult {
 // Supabase 관련 타입 (추후 추가 예정)
 // export interface SupabaseUser { ... }
 // export interface SupabaseToken { ... }
+
+// Phase 20: 전문가 기반 블로그 글 생성 시스템 (Expert System)
+
+// 전문가 타입
+export type ExpertType = 'restaurant' | 'product' | 'travel' | 'fashion' | 'living';
+
+export interface ExpertDefinition {
+  type: ExpertType;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  persona: string; // 전문가 페르소나 설명
+  expertise: string[]; // 전문 분야
+  recommendationType: 'nearby' | 'related' | 'destination'; // 추천 타입
+}
+
+// 모델 설정
+export interface ModelConfig {
+  imageAnalysisModel: string; // 예: 'gpt-4o', 'claude-opus-4-6', 'gemini-3-pro'
+  webSearchModel: string; // 예: 'gpt-4o-mini', 'claude-haiku-4-5'
+  contentGenerationModel: string; // 예: 'gpt-5.2', 'claude-opus-4-6'
+  creativity: number; // 1-10 (temperature: 0.3 + (creativity - 1) * 0.1)
+}
+
+// 웹 검색 관련 타입
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  source: 'naver' | 'google';
+}
+
+export interface WebSearchRequest {
+  query: string;
+  searchEngine: 'naver' | 'google'; // 선택 가능
+  limit?: number; // 기본 5
+}
+
+export interface WebSearchResponse {
+  success: boolean;
+  results: WebSearchResult[];
+  query: string;
+  source: 'naver' | 'google';
+  message?: string;
+  error?: string;
+}
+
+// 추천 시스템 관련 타입
+export interface RecommendationItem {
+  title: string;
+  url: string;
+  type: 'restaurant' | 'product' | 'place' | 'dish'; // 추천 아이템 타입
+  description: string;
+  rating?: number;
+  address?: string;
+}
+
+export interface RecommendationRequest {
+  query: string;
+  expertType: ExpertType;
+  recommendationType: 'nearby' | 'related' | 'destination'; // 추천 타입
+  limit?: number; // 기본 5
+}
+
+export interface RecommendationResponse {
+  success: boolean;
+  recommendations: RecommendationItem[];
+  expertType: ExpertType;
+  message?: string;
+  error?: string;
+}
+
+// 전문가 기반 이미지 분석
+export interface ExpertAnalyzeImagesRequest {
+  images: string[]; // Base64 encoded images
+  topic: string;
+  expertType: ExpertType;
+  modelConfig: ModelConfig;
+  context?: string;
+}
+
+export interface ExpertAnalyzeImagesResponse {
+  success: boolean;
+  analysis: ImageAnalysisResult;
+  expertType: ExpertType;
+  message?: string;
+  error?: string;
+}
+
+// 전문가 기반 콘텐츠 생성
+export interface ExpertCreateContentRequest {
+  topic: string;
+  length: 'short' | 'medium' | 'long';
+  keywords: KeywordItem[];
+  imageAnalysis: ImageAnalysisResult;
+  expertType: ExpertType;
+  modelConfig: ModelConfig;
+  webSearchResults?: WebSearchResult[]; // 웹 검색 결과
+  recommendations?: RecommendationItem[]; // 추천 아이템
+  startSentence?: string;
+  endSentence?: string;
+  placeInfo?: PlaceInfo;
+}
+
+export interface ExpertCreateContentResponse {
+  success: boolean;
+  content: GeneratedContentWithImages;
+  expertType: ExpertType;
+  cost?: {
+    usd: number;
+    krw: number;
+    breakdown?: {
+      imageAnalysis: { usd: number; krw: number };
+      contentGeneration: { usd: number; krw: number };
+      webSearch?: { usd: number; krw: number };
+    };
+  };
+  message?: string;
+  error?: string;
+}
