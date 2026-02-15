@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react
 import dynamic from 'next/dynamic';
 import Navigation from '@/components/layout/Navigation';
 import { Sparkles, Copy, Download, AlertCircle, ChevronDown, Check, X } from 'lucide-react';
-import type { KeywordItem, ImageAnalysisResult, ChatMessage, MenuInfo, ExpertType, ModelConfig, WebSearchResult, RecommendationItem } from '@/types/index';
+import type { KeywordItem, ImageAnalysisResult, ChatMessage, MenuInfo, ExpertType, ModelConfig, WebSearchResult, RecommendationItem, PlaceInfo } from '@/types/index';
 import { generateClientImageGuides } from '@/lib/utils/client-image-guide';
 import { copyToClipboard } from '@/lib/utils/download';
 
@@ -293,6 +293,7 @@ export default function GeneratePage() {
     modelConfig: ModelConfig;
     webSearchResults?: WebSearchResult[];
     recommendations?: RecommendationItem[];
+    placeInfo?: PlaceInfo;
   }) => {
     if (!images.length) {
       setError('이미지를 최소 1장 이상 업로드해주세요');
@@ -355,7 +356,7 @@ export default function GeneratePage() {
           recommendations: params.recommendations,
           startSentence,
           endSentence,
-          placeInfo,
+          placeInfo: params.placeInfo || placeInfo,
         }),
       });
 
