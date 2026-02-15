@@ -1,14 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { ExpertType, WebSearchResult, RecommendationItem, ModelConfig, KeywordItem } from '@/types';
 import { ExpertSelector } from './ExpertSelector';
 import { ModelSelector } from './ModelSelector';
 import { CreativitySlider } from './CreativitySlider';
-import { WebSearchResults } from './WebSearchResults';
-import { RecommendationsList } from './RecommendationsList';
 import ImageUpload from '../form/ImageUpload';
 import KeywordInput from '../form/KeywordInput';
+
+// 동적 임포트: 웹 검색 결과와 추천 목록은 필요할 때만 로드
+const WebSearchResults = dynamic(() => import('./WebSearchResults').then(mod => ({ default: mod.WebSearchResults })), {
+  loading: () => <p className="text-sm text-gray-500">검색 결과 로딩 중...</p>,
+});
+
+const RecommendationsList = dynamic(() => import('./RecommendationsList').then(mod => ({ default: mod.RecommendationsList })), {
+  loading: () => <p className="text-sm text-gray-500">추천 항목 로딩 중...</p>,
+});
 
 interface ExpertModeTabProps {
   onGenerateWithExpert: (params: {

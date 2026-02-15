@@ -54,22 +54,6 @@ export const EXPERTS: Record<ExpertType, ExpertDefinition> = {
     expertise: ['여행지 분석', '경험 공유', '여행 팁', '예산 계획', '문화 이해'],
     recommendationType: 'destination',
   },
-  fashion: {
-    type: 'fashion',
-    name: '패션 파워 블로거',
-    description: '트렌드, 스타일, 코디를 전문적으로 제시합니다',
-    icon: '👗',
-    color: 'from-pink-500 to-rose-500',
-    persona: `당신은 네이버 블로그 패션 전문가입니다.
-- 최신 트렌드와 클래식을 아우르는 스타일을 제시하는 파워 블로거
-- 의류의 소재, 핏, 색감을 정확하게 분석
-- 세련된, 캐주얼한, 우아한, 편안한 등 스타일 특성을 표현
-- 다양한 코디 방법과 활용도를 제시
-- 계절, 날씨, 상황별 스타일링 팁 제공
-- 가성비를 고려한 쇼핑 팁도 자연스럽게 포함`,
-    expertise: ['트렌드 분석', '스타일 제시', '코디 기술', '소재 분석', '색감 조화'],
-    recommendationType: 'related',
-  },
   living: {
     type: 'living',
     name: '리빙 파워 블로거',
@@ -132,11 +116,6 @@ export const RECOMMENDATION_QUERY_TEMPLATES: Record<
     nearby: '', // 불사용
     related: '{location} 근처 관광지',
     destination: '{location} 여행 코스',
-  },
-  fashion: {
-    nearby: '', // 불사용
-    related: '{style} 옷 추천',
-    destination: '', // 불사용
   },
   living: {
     nearby: '', // 불사용

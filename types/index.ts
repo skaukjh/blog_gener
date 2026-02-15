@@ -397,7 +397,7 @@ export interface NeighborCommentResult {
 // Phase 20: 전문가 기반 블로그 글 생성 시스템 (Expert System)
 
 // 전문가 타입
-export type ExpertType = 'restaurant' | 'product' | 'travel' | 'fashion' | 'living';
+export type ExpertType = 'restaurant' | 'product' | 'travel' | 'living';
 
 export interface ExpertDefinition {
   type: ExpertType;

@@ -1,12 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
+import dynamic from 'next/dynamic';
 import Navigation from '@/components/layout/Navigation';
-import { ExpertModeTab } from '@/components/expert/ExpertModeTab';
 import { Sparkles, Copy, Download, AlertCircle, ChevronDown, Check, X } from 'lucide-react';
 import type { KeywordItem, ImageAnalysisResult, ChatMessage, MenuInfo, ExpertType, ModelConfig, WebSearchResult, RecommendationItem } from '@/types/index';
 import { generateClientImageGuides } from '@/lib/utils/client-image-guide';
 import { copyToClipboard } from '@/lib/utils/download';
+
+// 동적 임포트: ExpertModeTab 및 자식 컴포넌트를 별도 청크로 분리
+const ExpertModeTab = dynamic(() => import('@/components/expert/ExpertModeTab').then(mod => ({ default: mod.ExpertModeTab })), {
+  loading: () => <div className="p-6 text-center text-gray-500">⭐ 전문가 모드 로딩 중...</div>,
+  ssr: true,
+});
 
 export default function GeneratePage() {
   const [topic, setTopic] = useState('');

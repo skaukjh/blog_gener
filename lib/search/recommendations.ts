@@ -183,7 +183,6 @@ JSON 형식:
         }
         break;
 
-      case 'fashion':
       case 'living':
         prompt = `아래 검색 결과에서 추천 제품/스타일 정보를 추출하고 JSON 형식으로 반환하세요.
 
