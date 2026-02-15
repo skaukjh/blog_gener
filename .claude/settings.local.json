@@ -58,7 +58,13 @@
       "Bash(tail:*)",
       "Bash(python3:*)",
       "Bash(ls:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(npm:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx playwright test:*)",
+      "Bash(npx playwright:*)",
+      "Bash(du:*)",
+      "Bash(xargs -I {} bash -c 'du -sh {} 2>/dev/null')"
     ]
   }
 }

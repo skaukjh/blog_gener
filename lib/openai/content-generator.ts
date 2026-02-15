@@ -75,6 +75,8 @@ export function validateKeywordInsertion(
  * 토~일 12:00 - 22:00
  * 라스트오더 21:00
  * 📞 0507-1407-9915
+ *
+ * 💬 실제 고객 리뷰 포함 (사용자 선택)
  */
 function formatPlaceInfo(placeInfo: PlaceInfo): string {
   let info = `${placeInfo.name}\n`;
@@ -95,6 +97,21 @@ function formatPlaceInfo(placeInfo: PlaceInfo): string {
 
   if (placeInfo.phone) {
     info += `📞 ${placeInfo.phone}\n`;
+  }
+
+  if (placeInfo.rating) {
+    info += `⭐ 평점: ${placeInfo.rating}/5.0\n`;
+  }
+
+  // 리뷰 추가 (사용자가 선택한 리뷰만 포함)
+  if (placeInfo.reviews && placeInfo.reviews.length > 0) {
+    info += `\n💬 실제 고객 리뷰 (선택된 ${placeInfo.reviews.length}개):\n`;
+    placeInfo.reviews.forEach((review, idx) => {
+      info += `\n${idx + 1}. ${review.author} (⭐ ${review.rating}/5)\n`;
+      info += `"${review.text}"\n`;
+      info += `- ${new Date(review.time).toLocaleDateString('ko-KR')}\n`;
+    });
+    info += `\n위 리뷰를 블로그 글에 자연스럽게 언급해주세요. 고객 평가가 실제 경험을 반영하므로 신뢰도를 높여줍니다.\n`;
   }
 
   return info;

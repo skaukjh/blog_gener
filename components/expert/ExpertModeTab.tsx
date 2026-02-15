@@ -2,10 +2,11 @@
 
 import { useState, useCallback, Suspense } from 'react';
 import dynamic from 'next/dynamic';
-import { ExpertType, WebSearchResult, RecommendationItem, ModelConfig, KeywordItem } from '@/types';
+import { ExpertType, WebSearchResult, RecommendationItem, ModelConfig, KeywordItem, PlaceInfo, PlaceReview } from '@/types';
 import { ExpertSelector } from './ExpertSelector';
 import { ModelSelector } from './ModelSelector';
 import { CreativitySlider } from './CreativitySlider';
+import { PlaceReviewSelector } from './PlaceReviewSelector';
 import ImageUpload from '../form/ImageUpload';
 import KeywordInput from '../form/KeywordInput';
 
@@ -24,6 +25,7 @@ interface ExpertModeTabProps {
     modelConfig: ModelConfig;
     webSearchResults?: WebSearchResult[];
     recommendations?: RecommendationItem[];
+    placeInfo?: PlaceInfo;
   }) => void;
   isLoading?: boolean;
   disabled?: boolean;
@@ -71,6 +73,12 @@ export function ExpertModeTab({
 
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [loadingRec, setLoadingRec] = useState(false);
+
+  // 맛집 정보 (restaurant 전문가 전용)
+  const [placeName, setPlaceName] = useState('');
+  const [placeInfo, setPlaceInfo] = useState<PlaceInfo | null>(null);
+  const [selectedReviews, setSelectedReviews] = useState<PlaceReview[]>([]);
+  const [loadingPlace, setLoadingPlace] = useState(false);
 
   // 웹 검색 (Naver + Google 동시)
   const handleWebSearch = useCallback(async () => {
@@ -158,6 +166,37 @@ export function ExpertModeTab({
   const handleCreativityChange = useCallback((creativity: number) => {
     setModelConfig(prev => ({ ...prev, creativity }));
   }, []);
+
+  // 맛집 정보 검색
+  const handlePlaceSearch = useCallback(async () => {
+    if (!placeName.trim()) {
+      alert('가게 이름을 입력해주세요');
+      return;
+    }
+
+    setLoadingPlace(true);
+    try {
+      const response = await fetch(`/api/place/search?name=${encodeURIComponent(placeName)}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setPlaceInfo(data.placeInfo);
+        setSelectedReviews([]); // 초기화
+        if (!data.placeInfo.reviews || data.placeInfo.reviews.length === 0) {
+          alert('리뷰 정보가 없습니다');
+        }
+      } else {
+        alert(data.error || '가게 정보를 찾을 수 없습니다');
+        setPlaceInfo(null);
+      }
+    } catch (error) {
+      console.error('가게 검색 오류:', error);
+      alert('가게 정보 조회에 실패했습니다');
+      setPlaceInfo(null);
+    } finally {
+      setLoadingPlace(false);
+    }
+  }, [placeName]);
 
   const canGenerate = selectedExpert && !disabled && !isLoading;
 
@@ -357,6 +396,62 @@ export function ExpertModeTab({
             )}
           </div>
 
+          {/* 맛집 정보 (restaurant 전문가 전용) */}
+          {selectedExpert === 'restaurant' && (
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold mb-3">🍽️ 맛집 정보 조회 (선택)</h3>
+
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={placeName}
+                  onChange={(e) => setPlaceName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()}
+                  placeholder="상호명을 입력하세요 (예: 원조해장촌 뼈구이한판 감자탕 선릉역점)"
+                  disabled={disabled || isLoading || loadingPlace}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100"
+                />
+                <button
+                  onClick={handlePlaceSearch}
+                  disabled={disabled || isLoading || loadingPlace || !placeName.trim()}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                >
+                  {loadingPlace ? '검색 중...' : '검색'}
+                </button>
+              </div>
+
+              {placeInfo && (
+                <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <h4 className="font-semibold text-lg">{placeInfo.name}</h4>
+                  {placeInfo.address && <p className="text-sm text-gray-600 mt-2">📍 {placeInfo.address}</p>}
+                  {placeInfo.phone && <p className="text-sm text-gray-600">📞 {placeInfo.phone}</p>}
+                  {placeInfo.rating && <p className="text-sm text-gray-600">⭐ {placeInfo.rating} / 5.0</p>}
+                  {placeInfo.openingHours && placeInfo.openingHours.length > 0 && (
+                    <div className="text-sm text-gray-600 mt-2">
+                      <p>⏰ {placeInfo.openingHours[0]}</p>
+                      {placeInfo.openingHours.slice(1).map((hours, idx) => (
+                        <p key={idx}>{hours}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {placeInfo?.reviews && placeInfo.reviews.length > 0 && (
+                <div className="mt-4">
+                  <Suspense fallback={<p className="text-sm text-gray-500">리뷰 로딩 중...</p>}>
+                    <PlaceReviewSelector
+                      reviews={placeInfo.reviews}
+                      selectedReviews={selectedReviews}
+                      onSelectReviews={setSelectedReviews}
+                      isLoading={loadingPlace}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 생성 버튼 */}
           <div className="border-t pt-6">
             <button
@@ -366,6 +461,10 @@ export function ExpertModeTab({
                   modelConfig,
                   webSearchResults: selectedWebResults.length > 0 ? selectedWebResults : undefined,
                   recommendations: selectedRecommendations.length > 0 ? selectedRecommendations : undefined,
+                  placeInfo: placeInfo ? {
+                    ...placeInfo,
+                    reviews: selectedReviews.length > 0 ? selectedReviews : undefined
+                  } : undefined,
                 });
               }}
               disabled={!canGenerate}
@@ -374,13 +473,13 @@ export function ExpertModeTab({
               {isLoading ? '생성 중...' : '✨ 전문가 모드로 글 생성'}
             </button>
 
-            {selectedRecommendations.length > 0 || selectedWebResults.length > 0 ? (
+            {selectedRecommendations.length > 0 || selectedWebResults.length > 0 || selectedReviews.length > 0 ? (
               <p className="text-sm text-green-600 mt-2">
-                ✓ {selectedWebResults.length}개 검색 결과 + {selectedRecommendations.length}개 추천 항목 적용됨
+                ✓ {selectedWebResults.length}개 검색 결과 + {selectedRecommendations.length}개 추천 항목 + {selectedReviews.length}개 리뷰 적용됨
               </p>
             ) : (
               <p className="text-sm text-gray-500 mt-2">
-                웹 검색 결과와 추천 항목을 선택하면 글에 자동으로 반영됩니다.
+                웹 검색 결과, 추천 항목, 맛집 리뷰를 선택하면 글에 자동으로 반영됩니다.
               </p>
             )}
           </div>

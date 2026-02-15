@@ -41,19 +41,8 @@ const SortableImageItem = React.memo(({ image, index, onRemove }: SortableImageI
     transition,
   } = useSortable({ id: `image-${index}` });
 
-  // 이미지 URL을 메모이제이션하여 변경 시에만 새로 생성
+  // 이미지 URL 생성 (File 객체가 GC될 때 자동으로 정리됨)
   const imageUrl = useMemo(() => URL.createObjectURL(image), [image]);
-
-  // 정리: 컴포넌트 언마운트 또는 이미지 변경 시 URL 해제
-  useEffect(() => {
-    return () => {
-      try {
-        URL.revokeObjectURL(imageUrl);
-      } catch (e) {
-        // 이미 해제된 URL일 수 있음
-      }
-    };
-  }, [imageUrl]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
