@@ -1,14 +1,15 @@
-import puppeteer, { Browser, Page } from "puppeteer";
+import { chromium, type Browser, type Page } from "playwright";
 import type { BlogPost } from "@/types/index";
 
 let browserInstance: Browser | null = null;
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 /**
  * 브라우저 인스턴스를 가져옵니다 (싱글톤)
  */
 async function getBrowser(): Promise<Browser> {
   if (!browserInstance) {
-    browserInstance = await puppeteer.launch({
+    browserInstance = await chromium.launch({
       headless: true,
       args: [
         "--no-sandbox",
@@ -21,6 +22,19 @@ async function getBrowser(): Promise<Browser> {
 }
 
 /**
+ * 새로운 페이지를 생성합니다 (User-Agent 포함)
+ */
+async function createNewPage(browser: Browser): Promise<{ context: any; page: Page }> {
+  const context = await browser.newContext({
+    userAgent: USER_AGENT,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(30000);
+  page.setDefaultNavigationTimeout(30000);
+  return { context, page };
+}
+
+/**
  * 네이버 블로그에서 최신 글을 크롤링합니다
  */
 export async function fetchLatestBlogPosts(
@@ -29,6 +43,7 @@ export async function fetchLatestBlogPosts(
 ): Promise<BlogPost[]> {
   let browser: Browser | null = null;
   let page: Page | null = null;
+  let context: any = null;
 
   try {
     // URL 유효성 검증
@@ -37,19 +52,12 @@ export async function fetchLatestBlogPosts(
     }
 
     browser = await getBrowser();
-    page = await browser.newPage();
-
-    // User-Agent 설정 (필수)
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    );
-
-    // 타임아웃 설정
-    page.setDefaultTimeout(30000);
-    page.setDefaultNavigationTimeout(30000);
+    const pageInfo = await createNewPage(browser);
+    context = pageInfo.context;
+    page = pageInfo.page;
 
     console.log(`[크롤러] ${blogUrl}에 접근 중...`);
-    await page.goto(blogUrl, { waitUntil: "networkidle2" });
+    await page.goto(blogUrl, { waitUntil: "networkidle" });
 
     // 자바스크립트 렌더링 대기 (네이버 블로그 콘텐츠 로드)
     await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 2000)));
@@ -185,12 +193,19 @@ export async function fetchLatestBlogPosts(
         : "블로그에서 글을 가져올 수 없습니다. 블로그 URL이 올바른지 확인해주세요."
     );
   } finally {
-    // 페이지만 닫고 브라우저는 유지 (성능 개선)
+    // context와 page 닫기, 브라우저는 유지 (성능 개선)
     if (page) {
       try {
         await page.close();
       } catch {
         // 페이지 닫기 실패해도 계속 진행
+      }
+    }
+    if (context) {
+      try {
+        await context.close();
+      } catch {
+        // context 닫기 실패해도 계속 진행
       }
     }
   }
@@ -205,19 +220,17 @@ async function fetchPostContent(
   timeout: number = 30000
 ): Promise<string> {
   let page: Page | null = null;
+  let context: any = null;
 
   try {
-    page = await browser.newPage();
+    const pageInfo = await createNewPage(browser);
+    context = pageInfo.context;
+    page = pageInfo.page;
     page.setDefaultTimeout(timeout);
     page.setDefaultNavigationTimeout(timeout);
 
-    // User-Agent 설정
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    );
-
     // 페이지 접근
-    await page.goto(postUrl, { waitUntil: "networkidle2" });
+    await page.goto(postUrl, { waitUntil: "networkidle" });
 
     // 자바스크립트 렌더링 대기
     await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 1500)));
@@ -263,6 +276,13 @@ async function fetchPostContent(
         await page.close();
       } catch {
         // 페이지 닫기 실패해도 계속 진행
+      }
+    }
+    if (context) {
+      try {
+        await context.close();
+      } catch {
+        // context 닫기 실패해도 계속 진행
       }
     }
   }
