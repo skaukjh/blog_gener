@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/layout/Navigation';
 import ImageUpload from '@/components/form/ImageUpload';
 import KeywordInput from '@/components/form/KeywordInput';
+import { ExpertModeTab } from '@/components/expert/ExpertModeTab';
 import { Sparkles, Copy, Download, AlertCircle, ChevronDown, Check, X, Star } from 'lucide-react';
-import type { KeywordItem, ImageAnalysisResult, ChatMessage, MenuInfo } from '@/types/index';
+import type { KeywordItem, ImageAnalysisResult, ChatMessage, MenuInfo, ExpertType, ModelConfig, WebSearchResult, RecommendationItem } from '@/types/index';
 import { generateClientImageGuides } from '@/lib/utils/client-image-guide';
 import { copyToClipboard } from '@/lib/utils/download';
 
@@ -34,6 +35,9 @@ export default function GeneratePage() {
   const [menuInput, setMenuInput] = useState('');
   const [showMenuInput, setShowMenuInput] = useState(false);
   const [selectedReviews, setSelectedReviews] = useState<number[]>([]); // 선택된 리뷰 인덱스
+
+  // Phase 20: 전문가 모드 상태
+  const [selectedMode, setSelectedMode] = useState<'basic' | 'expert'>('basic');
 
   // 초기 로드 시 저장된 스타일 조회 (sessionStorage 우선)
   useEffect(() => {
@@ -263,6 +267,105 @@ export default function GeneratePage() {
     }
   };
 
+  // Phase 20: 전문가 모드 글 생성
+  const handleGenerateExpert = async (params: {
+    expertType: ExpertType;
+    modelConfig: ModelConfig;
+    webSearchResults?: WebSearchResult[];
+    recommendations?: RecommendationItem[];
+  }) => {
+    if (!images.length) {
+      setError('이미지를 최소 1장 이상 업로드해주세요');
+      return;
+    }
+    if (!topic.trim()) {
+      setError('주제를 입력해주세요');
+      return;
+    }
+    if (!keywords.length) {
+      setError('키워드를 최소 1개 이상 입력해주세요');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setLoadingStep('compress');
+
+    try {
+      // 1. 이미지 압축
+      const compressedImages: string[] = [];
+      for (const file of images) {
+        const base64 = await compressImage(file);
+        compressedImages.push(base64);
+      }
+
+      // 2. 전문가별 이미지 분석
+      setLoadingStep('analyze');
+      const analyzeResponse = await fetch('/api/generate/analyze-images-expert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images: compressedImages,
+          topic,
+          expertType: params.expertType,
+          modelConfig: params.modelConfig,
+        }),
+      });
+
+      const analyzeText = await analyzeResponse.text();
+      const imageData = JSON.parse(analyzeText);
+
+      if (!imageData.success) {
+        throw new Error(imageData.error || '이미지 분석 실패');
+      }
+
+      // 3. 전문가 콘텐츠 생성
+      setLoadingStep('generate');
+      const generateResponse = await fetch('/api/generate/create-content-expert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic,
+          length,
+          keywords,
+          imageAnalysis: imageData.analysis,
+          expertType: params.expertType,
+          modelConfig: params.modelConfig,
+          webSearchResults: params.webSearchResults,
+          recommendations: params.recommendations,
+          startSentence,
+          endSentence,
+          placeInfo,
+        }),
+      });
+
+      const contentText = await generateResponse.text();
+      const contentData = JSON.parse(contentText);
+
+      if (!contentData.success) {
+        throw new Error(contentData.error || '콘텐츠 생성 실패');
+      }
+
+      setResult({
+        content: contentData.content.content,
+        imageAnalysis: imageData.analysis,
+        wordCount: contentData.content.wordCount,
+        keywordCounts: contentData.content.keywordCounts,
+        cost: contentData.cost,
+      });
+      setImageAnalysisResult(imageData.analysis);
+      setChatHistory([]);
+      setRefineInput('');
+      setError('');
+      setLoadingStep(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+      setLoadingStep(null);
+    }
+  };
+
   const handleCopyToClipboard = async () => {
     if (!result) return;
 
@@ -393,6 +496,38 @@ export default function GeneratePage() {
           <p className="text-lg text-gray-600 font-light">
             AI를 활용하여 파워 블로거 스타일의 블로그 글을 자동으로 생성합니다
           </p>
+
+          {/* Phase 20: 모드 선택 탭 */}
+          <div className="flex gap-2 mt-6">
+            <button
+              onClick={() => {
+                setSelectedMode('basic');
+                setResult(null);
+                setError('');
+              }}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                selectedMode === 'basic'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              📝 기본 모드
+            </button>
+            <button
+              onClick={() => {
+                setSelectedMode('expert');
+                setResult(null);
+                setError('');
+              }}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                selectedMode === 'expert'
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              ⭐ 전문가 모드
+            </button>
+          </div>
         </div>
 
         {/* 스타일 상태 표시 */}
@@ -663,6 +798,12 @@ export default function GeneratePage() {
               )}
             </div>
           </div>
+        ) : selectedMode === 'expert' ? (
+          <ExpertModeTab
+            onGenerateWithExpert={handleGenerateExpert}
+            isLoading={loading}
+            disabled={!savedStyle}
+          />
         ) : (
           <div className="space-y-6">
             <div className="glass-effect rounded-xl p-8 shadow-soft">

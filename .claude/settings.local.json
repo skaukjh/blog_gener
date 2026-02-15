@@ -53,7 +53,9 @@
       "Bash(cmd /c \"taskkill /PID 8264 /F\")",
       "Bash(git reset:*)",
       "Bash(git push:*)",
-      "Bash(shutdown:*)"
+      "Bash(shutdown:*)",
+      "mcp__playwright__browser_press_key",
+      "Bash(tail:*)"
     ]
   }
 }
