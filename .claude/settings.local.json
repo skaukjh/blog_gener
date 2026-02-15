@@ -57,7 +57,8 @@
       "mcp__playwright__browser_press_key",
       "Bash(tail:*)",
       "Bash(python3:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }
