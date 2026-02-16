@@ -1947,12 +1947,26 @@ export class NaverBlogAutomation {
 
             // 다음 글 처리 전 minInterval 기반 랜덤 대기 (스팸 방지)
             if (processedCount < maxPosts) {
-              // minInterval은 분 단위이므로 밀리초로 변환, ±30초 랜덤 추가
-              const baseWaitMs = minInterval * 60000;
-              const randomVariation = (Math.random() - 0.5) * 60000; // ±30초
+              // 최소 3분 이상 대기 + 0~2분 랜덤
+              const baseWaitMs = Math.max(minInterval * 60000, 180000); // 최소 3분 (180초)
+              const randomVariation = Math.random() * 120000; // 0 ~ 2분
               const waitTime = baseWaitMs + randomVariation;
-              console.log(`⏳ ${Math.round(Math.max(1, waitTime / 1000))}초 대기 중...`);
-              await this.page.waitForTimeout(Math.max(1000, waitTime)); // 최소 1초
+
+              // 30초 간격으로 남은 시간 표시
+              console.log(`⏳ ${Math.round(waitTime / 1000)}초 대기 중...`);
+              const interval = 30000; // 30초
+              let elapsed = 0;
+
+              while (elapsed < waitTime) {
+                const remaining = Math.ceil((waitTime - elapsed) / 1000);
+                // 30초 간격으로 로그 출력 (첫 시작은 제외, 마지막 5초 전부터)
+                if (elapsed > 0 && (remaining % 30 === 0 || remaining <= 5)) {
+                  console.log(`⏳ ${remaining}초 대기 중...`);
+                }
+                const nextWait = Math.min(interval, waitTime - elapsed);
+                await this.page.waitForTimeout(nextWait);
+                elapsed += nextWait;
+              }
             }
           } catch (err) {
             console.error('[Playwright] 글 처리 중 오류:', err);
@@ -2034,11 +2048,26 @@ export class NaverBlogAutomation {
 
               // 좋아요 간 minInterval 기반 랜덤 대기 (스팸 방지)
               if (likeOnlyCount < maxLikeOnlyAttempts) {
-                const baseWaitMs = minInterval * 60000;
-                const randomVariation = (Math.random() - 0.5) * 60000; // ±30초
+                // 최소 3분 이상 대기 + 0~2분 랜덤
+                const baseWaitMs = Math.max(minInterval * 60000, 180000); // 최소 3분 (180초)
+                const randomVariation = Math.random() * 120000; // 0 ~ 2분
                 const waitTime = baseWaitMs + randomVariation;
-                console.log(`⏳ ${Math.round(Math.max(1, waitTime / 1000))}초 대기 중...`);
-                await this.page.waitForTimeout(Math.max(1000, waitTime));
+
+                // 30초 간격으로 남은 시간 표시
+                console.log(`⏳ ${Math.round(waitTime / 1000)}초 대기 중...`);
+                const interval = 30000; // 30초
+                let elapsed = 0;
+
+                while (elapsed < waitTime) {
+                  const remaining = Math.ceil((waitTime - elapsed) / 1000);
+                  // 30초 간격으로 로그 출력 (첫 시작은 제외, 마지막 5초 전부터)
+                  if (elapsed > 0 && (remaining % 30 === 0 || remaining <= 5)) {
+                    console.log(`⏳ ${remaining}초 대기 중...`);
+                  }
+                  const nextWait = Math.min(interval, waitTime - elapsed);
+                  await this.page.waitForTimeout(nextWait);
+                  elapsed += nextWait;
+                }
               }
             } catch (err) {
               console.error('[좋아요 계속] 오류:', err);
