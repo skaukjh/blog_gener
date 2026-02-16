@@ -99,7 +99,28 @@ AUTH_PASSWORD=wogns0513@
 SESSION_SECRET=<random-32-char-string>
 BLOG_URL=https://blog.naver.com/ssyeonee27
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Optional (for web search & recommendations):
+NAVER_CLIENT_ID=...
+NAVER_CLIENT_SECRET=...
+GOOGLE_CSE_ID=...
+GOOGLE_CSE_API_KEY=...
 ```
+
+### Quality Assurance Workflow
+
+Before committing changes, always run:
+
+```bash
+# Run all checks (TypeScript, lint, build validation)
+npm run check-all
+
+# Or individually:
+npm run lint              # Check for linting issues
+npm run build             # Verify production build succeeds
+```
+
+**IMPORTANT**: Ensure `npm run check-all` passes before pushing code. The build must complete without TypeScript errors.
 
 ### Common Commands
 
@@ -115,11 +136,64 @@ npm start
 
 # Lint code
 npm run lint
+
+# Check all (TypeScript, lint, build)
+npm run check-all
 ```
 
 ## Key Implementation Details
 
-### Neighbor Blog Automation (Phase 17-18 - NEW)
+### Expert System Architecture (Phase 20+)
+
+The application uses an **Expert System** (4 domain-specific AI personas) instead of a single generic mode:
+
+**Expert Types** (`lib/experts/definitions.ts`):
+1. **Restaurant Blogger** (🍴)
+   - Specialized vocabulary for food/taste descriptions
+   - Integrates restaurant recommendation APIs
+   - **NEW**: Map-based restaurant discovery (MAP API integration)
+   - Visual analysis focuses on plating, appearance, presentation
+
+2. **Product Reviewer** (📦)
+   - Product comparison and feature analysis
+   - Price and specification extraction
+   - Brand and comparison recommendations
+
+3. **Travel Blogger** (✈️)
+   - Location-based content generation
+   - Tourism recommendations
+   - Local atmosphere and sensory descriptions
+
+4. **Living/Home Blogger** (🏠)
+   - Interior design and home improvement focus
+   - Product recommendations for living spaces
+   - Comfort and aesthetic emphasis
+
+**Expert Mode vs. Basic Mode**:
+- **Expert Mode**: Uses specialized prompts per expert, integrates web search, provides contextual recommendations
+- **Basic Mode**: Removed in Phase 22 (single generic content generation)
+- Current system focuses exclusively on expert-driven content with specialized knowledge
+
+**Restaurant Expert MAP API Feature** (Phase 23):
+- Discovers nearby restaurants based on location/cuisine
+- Integrates local map data into content recommendations
+- Enhances blog posts with location-specific information
+- Implemented in `app/(protected)/generate/page.tsx`
+
+**Key Flows**:
+```
+SELECT EXPERT TYPE
+  ↓ (Expert-specific image analysis)
+/api/generate/analyze-images-expert
+  ↓ (Optional: Web search for facts/recommendations)
+/api/search/web + /api/search/recommendations
+  ↓ (For Restaurant Expert: MAP API data integration)
+/api/maps/nearby-restaurants (if applicable)
+  ↓ (Expert-specific content generation with integrated data)
+/api/generate/create-content-expert
+```
+
+### Neighbor Blog Automation (Phase 17-18)
 
 **Architecture**: Playwright-based browser automation for visiting neighbor blog posts and posting comments with automatic likes
 
@@ -228,54 +302,86 @@ app/
 ├── (auth)/login/              # Public login page
 ├── (protected)/
 │   ├── layout.tsx             # Auth check, Navigation wrapper
-│   ├── generate/              # Main blog generation interface
+│   ├── generate/page.tsx      # Main blog generation (Expert System only)
+│   │                          # - Expert selector
+│   │                          # - Model/creativity controls
+│   │                          # - Web search integration
+│   │                          # - Map API integration (restaurants)
 │   ├── format/                # Blog style management
-│   └── neighbor/              # NEW: Neighbor blog automation
+│   └── neighbor/              # Neighbor blog automation (Phase 17+)
 │       ├── page.tsx           # Like neighbor posts home
-│       └── comment-and-like/  # NEW: Like + comment automation
+│       └── comment-and-like/  # Like + comment automation
 ├── api/
 │   ├── auth/                  # Authentication endpoints
 │   ├── blog/                  # Blog crawling and style analysis
 │   ├── assistant/             # OpenAI Assistant management
-│   ├── generate/              # Image analysis and content generation
-│   └── neighbor/              # NEW: Neighbor automation APIs
+│   ├── generate/
+│   │   ├── analyze-images-expert/route.ts      # Expert-specific image analysis
+│   │   └── create-content-expert/route.ts      # Expert-specific content generation
+│   ├── search/
+│   │   ├── web/route.ts       # Web search API (Naver/Google)
+│   │   └── recommendations/route.ts  # Expert-specific recommendations
+│   ├── maps/
+│   │   └── nearby-restaurants/route.ts  # MAP API for restaurant discovery
+│   └── neighbor/              # Neighbor automation APIs
 │       ├── like-home/         # Like neighbor posts API
-│       └── comment-and-like/  # NEW: Comment + like API (Phase 17)
+│       └── comment-and-like/  # Comment + like API
 ├── layout.tsx                 # Root layout
 ├── page.tsx                   # Redirect to /generate
 └── globals.css                # TailwindCSS
 
 components/
-├── layout/Navigation.tsx      # Top navigation with tab switching
+├── layout/Navigation.tsx      # Top navigation
+├── expert/                    # NEW: Expert System UI Components
+│   ├── ExpertSelector.tsx     # 4 expert type buttons
+│   ├── ModelSelector.tsx      # AI model selection (OpenAI/Claude/Gemini)
+│   ├── CreativitySlider.tsx   # Creativity/temperature control
+│   ├── WebSearchResults.tsx   # Web search results UI
+│   ├── RecommendationsList.tsx    # Recommendations UI
+│   └── ExpertModeTab.tsx      # Integrated expert mode interface
 ├── form/
 │   ├── ImageUpload.tsx       # Drag-drop image upload with preview
 │   └── KeywordInput.tsx      # Keyword tag management
-└── (result components planned for future)
+└── shared/                    # Utility components
 
 lib/
 ├── auth/session.ts            # JWT creation/verification
+├── experts/
+│   ├── definitions.ts         # Expert type definitions (4 types)
+│   └── prompts.ts             # Expert-specific system prompts
+├── search/
+│   ├── web-search.ts          # Naver + Google search
+│   ├── fact-extractor.ts      # Hallucination prevention
+│   └── recommendations.ts     # Expert-specific recommendations
+├── maps/
+│   └── restaurant-api.ts      # Restaurant discovery API (MAP API)
 ├── openai/
-│   ├── client.ts
+│   ├── client.ts              # Multi-model support
 │   ├── assistant.ts
 │   ├── blog-analyzer.ts
-│   ├── image-analyzer.ts
-│   ├── content-generator.ts
-│   ├── comment-generator.ts   # NEW (Phase 18): Neighbor comment generation
-│   └── prompts.ts
+│   ├── image-analyzer.ts      # Extended with expert methods
+│   ├── content-generator.ts   # Extended with expert methods
+│   ├── comment-generator.ts
+│   ├── prompts.ts
+│   └── pricing.ts             # Cost calculation utility
 ├── blog/scraper.ts            # Cheerio-based crawling
-├── naver/
-│   └── blog-automation.ts      # NEW (Phase 17): Playwright neighbor automation
+├── naver/blog-automation.ts   # Playwright neighbor automation
 └── utils/
     ├── validation.ts
     ├── cache.ts
     ├── image-processor.ts
     ├── marker-parser.ts
     ├── image-guide-generator.ts
-    └── download.ts
+    ├── download.ts
+    ├── api-helpers.ts         # API response standardization
+    └── rate-limiter.ts        # Rate limiting (LRU-cache based)
 
-types/index.ts                 # All TypeScript type definitions
+types/index.ts                 # TypeScript type definitions (all types)
 middleware.ts                  # Next.js request middleware
+.cache/                        # Blog style and recommendation caching (24h TTL)
 ```
+
+**NOTE**: Basic mode was removed in Phase 22. Current system is **Expert Mode only**.
 
 ## Critical Files for Common Tasks
 
@@ -283,17 +389,25 @@ middleware.ts                  # Next.js request middleware
 |------|------|-------|
 | Add new protected route | `middleware.ts` line 9 | Add to `protectedPaths` array |
 | Change auth password | `.env.local` | Update `AUTH_PASSWORD` |
-| Adjust cache duration | `lib/utils/cache.ts` line 6 | `CACHE_DURATION = ...` |
-| Update system prompts | `lib/openai/prompts.ts` | **CRITICAL**: Maintain 4-tier priority order; include sensory vocabulary |
-| Modify image analysis detail level | `lib/openai/image-analyzer.ts` line 60, 159 | Change `detail: "high"` to `"low"` (tradeoff: quality vs cost) |
-| Change image compression settings | `lib/utils/image-processor.ts` line 19-22 | Adjust maxWidth, maxHeight, quality |
-| Analyze blog style from samples | `lib/openai/blog-analyzer.ts` line 74-166 | Uses `analyzeStyleCompact()` with gpt-4o |
+| Adjust cache duration | `lib/utils/cache.ts` line 6 | `CACHE_DURATION = ...` (currently 24 hours) |
+| Add new expert type | `lib/experts/definitions.ts` | Define expert properties and prompts |
+| Update expert prompts | `lib/experts/prompts.ts` | Image analysis & content generation prompts per expert |
+| Modify expert model selection | `lib/openai/client.ts` | Add/remove supported models (OpenAI, Claude, Gemini) |
+| Update system prompts (basic) | `lib/openai/prompts.ts` | **CRITICAL**: Maintain 4-tier priority order; include sensory vocabulary |
+| Modify image analysis detail | `lib/openai/image-analyzer.ts` | Change `detail: "high"` to `"low"` (quality vs cost tradeoff) |
+| Change image compression | `lib/utils/image-processor.ts` line 19-22 | Adjust maxWidth, maxHeight, quality |
+| Analyze blog style | `lib/openai/blog-analyzer.ts` line 74-166 | Uses `analyzeStyleCompact()` with gpt-4o |
 | Update Assistant instructions | `app/api/blog/analyze-style/route.ts` line 72+ | Syncs style to OpenAI Assistant |
-| Add new API endpoint | Create in `app/api/...` | Must add to `protectedPaths` if protected |
-| Adjust comment length | `lib/openai/comment-generator.ts` line 35-36 | Change sentence count and character range |
-| Change wait time between posts | `lib/naver/blog-automation.ts` line 1852 | Modify `Math.random() * 100000 + 300000` formula |
-| Fix button selection logic | `lib/naver/blog-automation.ts` line 1558+ | Update 3-strategy approach in `submitSuccess` evaluate |
-| Handle iframe DOM access | `lib/naver/blog-automation.ts` line 1321+ | Always use `iframe.contentDocument` for Naver blog structure |
+| Add new API endpoint | Create in `app/api/...` | Must add to `protectedPaths` in middleware if protected |
+| Configure web search | `.env.local` | Set NAVER_CLIENT_ID/SECRET, GOOGLE_CSE_ID/KEY |
+| Configure MAP API (restaurants) | `.env.local` | Set MAP API credentials for restaurant discovery |
+| Adjust rate limiting | `lib/utils/rate-limiter.ts` | Default: 10 requests/minute per IP |
+| Adjust comment generation | `lib/openai/comment-generator.ts` line 35-36 | Change sentence count and character range |
+| Change neighbor wait time | `lib/naver/blog-automation.ts` line 1852 | Modify `Math.random() * 100000 + 300000` formula |
+| Fix button selection (Naver) | `lib/naver/blog-automation.ts` line 1558+ | Update 3-strategy approach in `submitSuccess` evaluate |
+| Handle iframe DOM access (Naver) | `lib/naver/blog-automation.ts` line 1321+ | Always use `iframe.contentDocument` for Naver structure |
+| Add cost calculation | `lib/openai/pricing.ts` | Update token-to-cost conversion rates |
+| Sanitize HTML content | Check DOMPurify config | Security: prevents XSS in generated content |
 
 ## Type System
 
@@ -312,103 +426,181 @@ All types are defined in `types/index.ts`. Key types:
 - Token verification failures automatically redirect to login
 - Image validation prevents unsupported formats or oversized files (>10MB)
 
-## Testing Workflow (Phase 11)
+## Testing Workflow (Phase 23 - Expert Mode Only)
 
 ### Login & Initial Setup
 - Test login: `/login` with password `wogns0513@`
-- Direct to `/format` (style management page)
+- Redirects to `/generate` (now exclusively Expert Mode)
 
-### Style Analysis Testing
+### Style Analysis Testing (Still Required)
 1. **Format Page** (`/format`)
    - Input 2+ blog samples (300+ chars each)
    - Click "새로운 글 작성 스타일 분석"
    - Verify SENTENCE ENDING PATTERN appears first in analysis
    - Check `.cache/blog-style.txt` for correct format
    - Confirm OpenAI Assistant instruction was updated
+   - *Note: Style is used as context for all expert modes*
 
 2. **API Direct Test**: `POST /api/blog/analyze-style`
    - Body: `{ posts: [{ title: "...", excerpt: "..." }, ...] }`
    - Response should include numbered sections with sentence ending pattern highlighted
 
-### Content Generation Testing
-1. **Generate Page** (`/generate`)
-   - Verify "✅ 스타일이 준비되었습니다" appears
-   - Upload test images
-   - Check image analysis quality (visual details should be specific)
+### Expert Mode Testing
+1. **Generate Page** (`/generate`) - Expert Mode Focused
+   - Verify 4 expert type buttons appear:
+     - 🍴 Restaurant Blogger
+     - 📦 Product Reviewer
+     - ✈️ Travel Blogger
+     - 🏠 Living Blogger
+   - Select an expert type
+   - Input validation:
+     - Images required (1-25)
+     - Topic required (1-100 chars)
+     - Keywords optional
+     - Length selection required
+   - Model selection:
+     - Default: gpt-4o
+     - Advanced options: Claude Opus/Sonnet/Haiku, Gemini models
+   - Optional: Web search toggle (requires search API keys)
    - Generate content and verify:
-     - Sentence endings match extracted pattern (~~요, ~~다, etc.)
-     - Only visual elements from images are mentioned
-     - Sensory vocabulary is used (고소한, 바삭한, 촉촉한, etc.)
-     - No generic filler unrelated to images
+     - Expert-specific vocabulary used
+     - Content matches expert persona
+     - Image marker placement contextual
+     - Keyword integration natural
+     - Marker count matches image count
 
-2. **API Direct Test**: `POST /api/generate/analyze-images`
-   - Body: `{ images: ["data:image/jpeg;base64,..."], topic: "..." }`
-   - Response includes `visualDetails` field with colors, textures, composition
+2. **API Direct Tests for Expert Mode**:
+   - `POST /api/generate/analyze-images-expert`
+     - Body: `{ images: [...], topic: "...", expertType: "restaurant" }`
+     - Response: expert-specific visual analysis
 
-3. **API Direct Test**: `POST /api/generate/create-content`
-   - Verify image marker placement matches visual content
-   - Verify keyword inclusion is natural
-   - Check marker count equals image count
+   - `POST /api/generate/create-content-expert`
+     - Body: `{ ...analysis, expertType: "restaurant", temperature: 0.7 }`
+     - Response: expert-driven content with integrated data
 
-## Performance Considerations (Phase 11 Optimized)
+   - `POST /api/search/web` (optional)
+     - Body: `{ query: "...", searchEngine: "naver" }`
+     - Response: web search results (requires API keys)
 
+   - `POST /api/maps/nearby-restaurants` (restaurant expert only)
+     - Body: `{ location: "...", cuisine: "..." }`
+     - Response: nearby restaurant recommendations
+
+### Quality Checks
+```bash
+# Before committing changes:
+npm run check-all
+
+# Verify:
+✓ TypeScript compiles (strict mode)
+✓ No linting errors
+✓ Production build succeeds
+✓ All markers validate correctly
+✓ DOMPurify sanitization works
+✓ Rate limiter doesn't block legitimate requests
+```
+
+## Performance Considerations (Phase 23 - Expert System)
+
+### Image Analysis
 - Images analyzed in batches of 5-6 to balance API rate limits
-- Blog style stored in Assistant instruction (zero cost on reuse, 70% token savings vs Phase 10)
 - High-quality image analysis (`detail: "high"`, gpt-4o) provides better sensory descriptions
-- Sensory vocabulary guidance (35+ terms) in prompts reduces hallucination and redundant refinement
+- Expert-specific analysis reduces token waste (uses only relevant vocabulary per expert)
+- Sensory vocabulary guidance (35+ terms per expert) in prompts reduces hallucination
+
+### Caching & Cost Optimization
+- Blog style stored in Assistant instruction (zero cost on reuse, 70% token savings)
+- Web search results cached (24-hour TTL) to reduce duplicate queries
+- Expert definitions cached in memory (no re-parsing)
+- Recommendations cached (24-hour TTL)
+
+### Rendering & Infrastructure
 - Client-side image compression reduces payload size
-- Next.js automatically optimizes CSS with TailwindCSS v3
-- **Trade-off**: Cost increases ~3x per image analysis, but quality improvement justifies (sensory detail, consistency)
+- Next.js automatic CSS optimization with TailwindCSS v3
+- React memoization (Phase 23) reduces unnecessary re-renders
+- Rate limiting (10 req/min) prevents abuse without impacting legitimate users
 
-## Quality Improvements (Phase 11 - Blog Generation Enhancement)
+### Model-Specific Costs (per request with 10 images)
+| Expert | Model | Cost |
+|--------|-------|------|
+| Any | gpt-4o | ~$0.025 |
+| Any | gpt-4.5 | ~$0.018 |
+| Any | gpt-4o-mini | ~$0.008 |
+| Any | Claude Opus | ~$0.030 |
+| Restaurant | + MAP API | +$0.002-0.005 |
 
-### Five Quality Pillars Implemented
+**Note**: Web search adds ~$0.002-0.003 per query
+
+## Quality Improvements (Phase 11-23 - Continuous Enhancement)
+
+### Core Quality Pillars (Phase 11+)
 
 1. **Sentence Ending Consistency (종결어미)** ⭐
-   - Automatically extracted from user samples
+   - Automatically extracted from user blog samples
    - Applied as PRIORITY 1 in all generation prompts
-   - Ensures 100% consistency (vs 98% before)
+   - Ensures 100% consistency across all expert modes
    - Examples: "~~요 endings", "~~다 endings" patterns
+   - Applied to main content AND AI-generated comments
 
 2. **Image-Based Descriptions**
    - System forced to only describe visible elements
    - 80% focus on visual details, 20% context
-   - Eliminates generic filler unrelated to images
+   - Expert-specific descriptors prevent generic filler
+   - Visual-first approach in prompts
 
-3. **Sensory Vocabulary Enhancement**
-   - 35+ taste terms (고소한, 짭짜한, 담백한, 진한, etc.)
-   - 35+ texture terms (쫄깃한, 바삭한, 촉촉한, 폭신한, etc.)
-   - Aroma, temperature, specific phrases
-   - Reduces need for user refinement
+3. **Expert-Specific Vocabulary** (Phase 20+)
+   - Restaurant: 35+ taste/aroma terms (고소한, 짭짜한, 담백한, etc.)
+   - Restaurant: 35+ texture terms (쫄깃한, 바삭한, 촉촉한, etc.)
+   - Product: Technical specs, comparison vocabulary
+   - Travel: Location, sensory, adventure terminology
+   - Living: Comfort, aesthetic, design vocabulary
+   - Reduces hallucination by limiting domain-specific terms
 
-4. **High-Quality Image Analysis**
-   - Upgraded: gpt-4o-mini → gpt-4o
-   - Detail level: `"low"` (85 tokens) → `"high"` (170+ tokens)
-   - **Cost**: ~3x per image ($0.0015 → $0.0043 per 10-image batch)
-   - **Benefit**: Colors, plating, textures, lighting captured precisely
+4. **High-Quality Image Analysis** (Phase 11+)
+   - Detail level: `detail: "high"` (170+ tokens per image)
+   - Model: gpt-4o (upgraded from gpt-4o-mini)
+   - Extracts: colors, textures, composition, lighting, mood
+   - Expert-specific analysis focuses on relevant attributes
 
-5. **Writing Priority System**
-   - 4-tier priority ensures correct precedence
+5. **Writing Priority System** (Phase 11+)
+   - 4-tier priority ensures correct precedence:
+     1. SENTENCE ENDING CONSISTENCY
+     2. IMAGE-BASED DESCRIPTIONS (visual content only)
+     3. TECHNICAL REQUIREMENTS (markers, keywords)
+     4. QUALITY & ENGAGEMENT
    - Prevents lower-priority rules from overriding critical ones
-   - Especially important for sentence ending consistency
+
+6. **Expert System Design** (Phase 20+)
+   - Domain-specific prompts prevent generic content
+   - Specialized vocabulary per expert type
+   - Integrated web search for factual accuracy
+   - Recommendations system adds credibility
+   - Temperature/creativity adjustable (1-10 scale)
+
+7. **Security & Validation** (Phase 22-23)
+   - DOMPurify sanitization prevents XSS
+   - Rate limiting (10 req/min) prevents abuse
+   - Marker count validation (must match image count)
+   - Fetch timeout (5 sec) prevents hanging requests
+   - Input validation on all forms
 
 ### Decision Rationale
-- **Cost vs. Quality Tradeoff**: Accepted 3x cost increase for sensory detail quality
-- **Explicit Style Extraction**: Moved from implicit pattern matching to explicit sentence-ending analysis
-- **Priority-Based Prompting**: Replaced competing instructions with clear hierarchy
-- **Visual-First Approach**: Forced image descriptions to avoid hallucination and generic content
+- **Expert-Only**: Removed basic mode for focused, high-quality content
+- **Cost vs. Quality**: Accepted higher API costs for sensory detail and factual accuracy
+- **Domain Specialization**: Expert personas provide better consistency than generic templates
+- **Integrated Data**: Web search + recommendations enhance credibility over AI-only generation
 
 ## Phase 20: 전문가 기반 블로그 글 생성 시스템 구현 (2026-02-15 완료) ⭐⭐⭐⭐⭐
 
 ### 구현 완료 (Phase 1: 기반 구조 + 5개 전문가)
 
-#### 1️⃣ 전문가 시스템 (5개 완성)
-- ✅ `lib/experts/definitions.ts` - 5개 전문가 정의
-  - 맛집 파워 블로거 (🍴)
+#### 1️⃣ 전문가 시스템 (4개 완성)
+- ✅ `lib/experts/definitions.ts` - 4개 전문가 정의
+  - 맛집 파워 블로거 (🍴) - **MAP API 통합**
   - 제품 후기 파워 블로거 (📦)
   - 여행 파워 블로거 (✈️)
-  - 패션 파워 블로거 (👗)
   - 리빙 파워 블로거 (🏠)
+  - *패션 파워 블로거 (👗) - Phase 22에서 제거됨*
 
 - ✅ `lib/experts/prompts.ts` - 전문가별 System Prompts
   - 이미지 분석 프롬프트 (각 분야 특화)
@@ -568,6 +760,85 @@ All types are defined in `types/index.ts`. Key types:
 ✅ 배포: 준비 완료
 ```
 
+## Recent Updates & Critical Fixes
+
+### Phase 23 & Latest (2026-02-15 - 2026-02-16)
+- ✅ React Memoization 최적화 구현 (Phase 5.1)
+- ✅ 맛집 MAP API 기능 복원 (generate/page.tsx 수정)
+- ✅ CRITICAL 버그 2개 해결:
+  1. **DOMPurify 오류** 수정 (XSS 방지)
+  2. **마커 개수 불일치 버그** 해결
+- ✅ 패션 전문가 제거 (5개 → 4개 전문가 시스템)
+- ✅ node_modules 정리 - 불필요한 패키지 제거
+
+### Key Bug Fixes & Solutions
+- **DOMPurify Issue**:
+  - Problem: HTML sanitization breaking styled content
+  - Solution: Proper config in `isomorphic-dompurify`, tested with generated HTML
+  - Test: Verify styled content renders correctly in `/generate` page
+
+- **Marker Mismatch**:
+  - Problem: Generated content markers don't match uploaded image count
+  - Solution: Validation in `lib/utils/marker-parser.ts` + content-generator consistency checks
+  - Test: Verify `[IMAGE_1]....[IMAGE_N]` count equals actual images
+
+- **Memory Leaks**:
+  - Problem: Canvas operations and fetch timeouts not cleaned up
+  - Solution: `AbortController` cleanup, timeout management in `image-processor.ts`
+  - Test: Long sessions should not degrade performance
+
+## Common Debugging & Troubleshooting
+
+### Build Failures
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `TypeScript error TS2307: Cannot find module` | Missing import or incorrect path | Check `@/*` alias in tsconfig.json; verify file exists |
+| `Next.js build fails` | Unhandled async in getStaticProps | Ensure all async operations have proper error handling |
+| `Module not found: isomorphic-dompurify` | Package not installed | Run `npm install` |
+
+### Runtime Issues
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Content generation hangs | Fetch timeout or API rate limit | Check network; verify API keys; review rate limiter in `lib/utils/rate-limiter.ts` |
+| DOMPurify error on render | HTML contains script tags or unsafe content | Review `lib/utils/sanitize.ts` config; use isomorphic-dompurify |
+| Marker count mismatch | Generated markers != uploaded images | Check `lib/utils/marker-parser.ts` regex; verify image count in request |
+| Images not analyzed | Image format or size issue | Verify JPEG/PNG < 10MB; check Sharp configuration in `lib/utils/image-processor.ts` |
+| Expert selector not showing | Missing components or routing error | Check `components/expert/` directory exists; verify routing in `app/(protected)/generate/page.tsx` |
+| Rate limiter blocking requests | Too many requests in short time | Wait 1 minute or check LRU-Cache configuration in `lib/utils/rate-limiter.ts` |
+
+### Performance Issues
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| Slow image analysis | Using `detail: "high"` at scale | Batch images in 5-6 groups; consider `detail: "low"` for cost savings |
+| Memory growth over time | Canvas or fetch operations not cleaned up | Check `AbortController` usage; verify timeout cleanup |
+| High API costs | Unnecessary re-analysis of same content | Verify cache TTL (24h); check `.cache/blog-style.txt` exists |
+| Slow page load | Too many API calls in parallel | Implement request queuing; review component render counts |
+
+### API Endpoint Debugging
+
+**Test authentication**:
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"password":"wogns0513@"}'
+```
+
+**Test blog style analysis**:
+```bash
+curl -X POST http://localhost:3000/api/blog/analyze-style \
+  -H "Content-Type: application/json" \
+  -H "Cookie: blog_session=<token>" \
+  -d '{"posts":[{"title":"Sample","excerpt":"Sample text"}]}'
+```
+
+**Check cache status**:
+```bash
+# On Windows:
+type .cache\blog-style.txt
+# On Unix:
+cat .cache/blog-style.txt
+```
+
 ## Security Notes
 
 - Never commit `.env.local` (already in `.gitignore`)
@@ -578,3 +849,4 @@ All types are defined in `types/index.ts`. Key types:
 - OpenAI API keys never logged or exposed in error messages
 - **Phase 20**: Web search queries anonymized, no user data in API logs
 - **Phase 22**: DOMPurify XSS prevention, Rate limiting, fetch timeout management
+- **Phase 23**: Continued XSS prevention and secure DOM handling with proper sanitization

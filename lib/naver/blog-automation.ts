@@ -1794,18 +1794,13 @@ export class NaverBlogAutomation {
             const title = anchor.textContent?.trim() || anchor.getAttribute('title') || `[제목 없음 #${idx + 1}]`;
             const url = anchor.href;
 
-            // 좋아요 상태 확인: 글 항목의 부모 요소에서 좋아요 버튼 찾기
-            let hasLike = false;
-            const articleItem = anchor.closest('.list_post_article');
-            if (articleItem) {
-              // 좋아요 버튼 찾기 (aria-pressed="true" 또는 u_likeit_on 클래스)
-              const likeBtn = articleItem.querySelector('button[aria-pressed="true"], button.u_likeit_on');
-              hasLike = !!likeBtn;
-            }
+            // 좋아요 상태: 이웃 목록의 좋아요 버튼 상태는 부정확할 수 있으므로
+            // 글 페이지에서 진입 후 실제 상태를 확인하기 위해 여기선 false로 초기화
+            const hasLike = false;
 
             console.log(`[evaluate] [${idx}] 제목: "${title}"`);
             console.log(`[evaluate]     URL: ${url.substring(0, 80)}...`);
-            console.log(`[evaluate]     좋아요: ${hasLike ? '✓' : '✗'}`);
+            console.log(`[evaluate]     좋아요: (글 페이지에서 확인 예정)`);
 
             articles.push({
               title,
@@ -1828,20 +1823,19 @@ export class NaverBlogAutomation {
           try {
             console.log(`\n[Playwright] [${processedCount + 1}] ${title}`);
             console.log(`[Playwright] URL: ${url}`);
-            console.log(`[Playwright] 좋아요 상태: ${hasLike ? '✓ 누름' : '✗ 미누름'}`);
 
             // 댓글 조건 판단:
             // 1단계: URL에 대상 닉네임이 포함되는가?
             const hasTargetNickname = targetNicknames && targetNicknames.some((nick) => url.includes(nick));
             console.log(`[Playwright] 대상 닉네임 포함: ${hasTargetNickname ? '✓' : '✗'}`);
 
-            // 1단계 체크: URL에 대상 닉네임이 포함되지 않으면 댓글 작성 안함 (좋아요 여부 무관)
+            // 1단계 체크: URL에 대상 닉네임이 포함되지 않으면 댓글 작성 안함
             if (!hasTargetNickname) {
               result.totalSkipped++;
               result.details.push({
                 title,
                 url,
-                liked: hasLike,
+                liked: false,
                 commented: false,
                 reason: 'URL에 대상 닉네임이 포함되지 않음',
               });
@@ -1849,11 +1843,38 @@ export class NaverBlogAutomation {
               continue;
             }
 
-            // 2단계 체크: URL에 대상 닉네임이 포함되면, 좋아요가 없어야 댓글 작성
             const matchedNickname = targetNicknames?.find((nick) => url.includes(nick));
             console.log(`✅ 대상 닉네임 "${matchedNickname}" 일치!`);
 
-            if (hasLike) {
+            // 2단계: 글 페이지에서 실제 좋아요 상태 확인
+            console.log(`📖 글 페이지로 이동하여 좋아요 상태 확인 중...`);
+            await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            await this.page.waitForTimeout(500);
+
+            // 글 페이지에서 좋아요 상태 확인
+            const isAlreadyLiked = await this.page.evaluate(() => {
+              const iframeElems = document.querySelectorAll('iframe');
+              for (const iframe of iframeElems) {
+                try {
+                  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                  if (iframeDoc) {
+                    const likeBtn = iframeDoc.querySelector('button[aria-pressed]');
+                    if (likeBtn) {
+                      const isPressed = likeBtn.getAttribute('aria-pressed') === 'true';
+                      console.log(`[evaluate] iframe에서 좋아요 상태: aria-pressed="${likeBtn.getAttribute('aria-pressed')}"`);
+                      return isPressed;
+                    }
+                  }
+                } catch (e) {
+                  // iframe 접근 실패, 다음 iframe 시도
+                }
+              }
+              return false; // 좋아요 버튼을 찾을 수 없으면 false로 가정
+            });
+
+            console.log(`[Playwright] 글 페이지 좋아요 상태: ${isAlreadyLiked ? '✓ 이미 누름' : '✗ 미누름'}`);
+
+            if (isAlreadyLiked) {
               result.totalSkipped++;
               result.details.push({
                 title,
@@ -1862,11 +1883,11 @@ export class NaverBlogAutomation {
                 commented: false,
                 reason: '대상이지만 이미 좋아요가 눌려있음',
               });
-              console.log(`⏭️  건너뛰기: URL에 닉네임 있지만 좋아요가 이미 눌려있음`);
+              console.log(`⏭️  건너뛰기: 글 페이지 확인 결과 이미 좋아요가 눌려있음`);
               continue;
             }
 
-            console.log(`✅ 댓글 작성 조건 만족: URL에 대상 닉네임 포함 + 좋아요 없음`);
+            console.log(`✅ 댓글 작성 조건 만족: URL에 대상 닉네임 포함 + 좋아요 미누름`);
 
             // 본문 추출 (좋아요 상태 재확인 포함)
             console.log(`📖 본문 추출 중...`);
@@ -1976,7 +1997,7 @@ export class NaverBlogAutomation {
           console.log(`\n[좋아요 계속] 페이지 ${likingPage} 처리 중...`);
 
           const likePageResults = await this.page.evaluate(() => {
-            const articles: Array<{ title: string; url: string; hasLike: boolean }> = [];
+            const articles: Array<{ title: string; url: string }> = [];
             const linkElements = document.querySelectorAll(
               '#content > section > div.list_post_article.list_post_article_comments a.desc_inner'
             );
@@ -1988,14 +2009,8 @@ export class NaverBlogAutomation {
               const title = anchor.textContent?.trim() || anchor.getAttribute('title') || `[제목 없음]`;
               const url = anchor.href;
 
-              let hasLike = false;
-              const articleItem = anchor.closest('.list_post_article');
-              if (articleItem) {
-                const likeBtn = articleItem.querySelector('button[aria-pressed="true"], button.u_likeit_on');
-                hasLike = !!likeBtn;
-              }
-
-              articles.push({ title, url, hasLike });
+              // 좋아요 상태는 글 페이지에서 확인하므로 여기선 제외
+              articles.push({ title, url });
             });
 
             return articles;
@@ -2006,13 +2021,7 @@ export class NaverBlogAutomation {
           for (const article of likePageResults) {
             if (likeOnlyCount >= maxLikeOnlyAttempts) break;
 
-            const { title, url, hasLike } = article;
-
-            // 좋아요가 이미 눌려있으면 스킵
-            if (hasLike) {
-              console.log(`⏭️  [좋아요 계속] "${title}" - 이미 좋아요 누름 (스킵)`);
-              continue;
-            }
+            const { title, url } = article;
 
             try {
               console.log(`👍 [좋아요 계속] "${title}" - 좋아요 누르는 중...`);
