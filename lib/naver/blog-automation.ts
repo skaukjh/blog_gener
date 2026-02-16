@@ -1288,12 +1288,48 @@ export class NaverBlogAutomation {
           return false;
         }
 
-        // 좋아요 버튼의 aria-pressed 속성으로 상태 확인
-        const likeBtn = iframeDoc.querySelector('button[aria-pressed]');
-        const isPressed = likeBtn?.getAttribute('aria-pressed') === 'true';
+        // 좋아요 버튼 찾기 (toggleLike와 동일한 정확한 로직)
+        let likeButton: HTMLElement | null = null;
 
-        console.log(`[evaluate] 좋아요 버튼 상태: aria-pressed="${likeBtn?.getAttribute('aria-pressed')}"`);
-        return isPressed || false;
+        // 전략 1: a 태그 선택자
+        const aLink = iframeDoc.querySelector('a[onclick*="likeit"]');
+        if (aLink) likeButton = aLink as HTMLElement;
+
+        // 전략 2: button 태그 선택자
+        if (!likeButton) {
+          const btnLink = iframeDoc.querySelector('button[aria-pressed]');
+          if (btnLink) likeButton = btnLink as HTMLElement;
+        }
+
+        // 전략 3: "공감" 텍스트로 검색
+        if (!likeButton) {
+          const allLinks = iframeDoc.querySelectorAll('a, button');
+          for (const link of allLinks) {
+            const text = link.textContent?.trim() || '';
+            if (text.includes('공감')) {
+              likeButton = link as HTMLElement;
+              break;
+            }
+          }
+        }
+
+        if (!likeButton) {
+          console.log('[evaluate] 좋아요 버튼을 찾을 수 없습니다');
+          return false;
+        }
+
+        // 좋아요 상태 확인 (aria-pressed와 클래스 모두 확인)
+        const ariaPressedValue = likeButton.getAttribute('aria-pressed');
+        const isLikedByAriaPressed = ariaPressedValue === 'true';
+
+        // 클래스로도 확인 (폴백) - 'off' 클래스 확인
+        const isLikedByClass = !likeButton.classList.contains('off') &&
+                               !likeButton.className.includes('_face off');
+
+        const isLiked = isLikedByAriaPressed || isLikedByClass;
+
+        console.log(`[evaluate] 좋아요 상태: aria-pressed="${ariaPressedValue}", class="${likeButton.className}", 결과=${isLiked}`);
+        return isLiked;
       });
 
       // 좋아요가 눌려있으면 null 반환 (댓글 작성 안함)
