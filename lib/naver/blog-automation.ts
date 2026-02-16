@@ -1026,8 +1026,9 @@ export class NaverBlogAutomation {
         console.log('[Playwright] ✅ 좋아요 완료');
         return true;
       } else {
-        console.log('[Playwright] ℹ️ 이미 좋아요가 눌려있습니다');
-        return false;
+        console.log('[Playwright] ℹ️ 이미 좋아요가 눌려있습니다 (스킵)');
+        // 이미 좋아요가 눌려있으면 true 반환 (중복 작업 스킵)
+        return true;
       }
     } catch (error) {
       console.error(`[Playwright] 좋아요 처리 오류 (${postUrl}):`, error);
@@ -1846,48 +1847,7 @@ export class NaverBlogAutomation {
             const matchedNickname = targetNicknames?.find((nick) => url.includes(nick));
             console.log(`✅ 대상 닉네임 "${matchedNickname}" 일치!`);
 
-            // 2단계: 글 페이지에서 실제 좋아요 상태 확인
-            console.log(`📖 글 페이지로 이동하여 좋아요 상태 확인 중...`);
-            await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-            await this.page.waitForTimeout(500);
-
-            // 글 페이지에서 좋아요 상태 확인
-            const isAlreadyLiked = await this.page.evaluate(() => {
-              const iframeElems = document.querySelectorAll('iframe');
-              for (const iframe of iframeElems) {
-                try {
-                  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-                  if (iframeDoc) {
-                    const likeBtn = iframeDoc.querySelector('button[aria-pressed]');
-                    if (likeBtn) {
-                      const isPressed = likeBtn.getAttribute('aria-pressed') === 'true';
-                      console.log(`[evaluate] iframe에서 좋아요 상태: aria-pressed="${likeBtn.getAttribute('aria-pressed')}"`);
-                      return isPressed;
-                    }
-                  }
-                } catch (e) {
-                  // iframe 접근 실패, 다음 iframe 시도
-                }
-              }
-              return false; // 좋아요 버튼을 찾을 수 없으면 false로 가정
-            });
-
-            console.log(`[Playwright] 글 페이지 좋아요 상태: ${isAlreadyLiked ? '✓ 이미 누름' : '✗ 미누름'}`);
-
-            if (isAlreadyLiked) {
-              result.totalSkipped++;
-              result.details.push({
-                title,
-                url,
-                liked: true,
-                commented: false,
-                reason: '대상이지만 이미 좋아요가 눌려있음',
-              });
-              console.log(`⏭️  건너뛰기: 글 페이지 확인 결과 이미 좋아요가 눌려있음`);
-              continue;
-            }
-
-            console.log(`✅ 댓글 작성 조건 만족: URL에 대상 닉네임 포함 + 좋아요 미누름`);
+            console.log(`✅ 댓글 작성 조건 만족: URL에 대상 닉네임 포함 (좋아요 상태는 댓글 작성 시 확인)`);
 
             // 본문 추출 (좋아요 상태 재확인 포함)
             console.log(`📖 본문 추출 중...`);
